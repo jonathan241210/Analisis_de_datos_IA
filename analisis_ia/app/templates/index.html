@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>analisis_ia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;1,8..60,400;1,8..60,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">cuaderno de datos</p>
+        <h1>analisis_ia</h1>
+      </div>
+      <div id="dataset-chip" class="chip muted" title="Dataset activo">Sin dataset</div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab is-active" data-tab="ingest">Ingesta</button>
+      <button class="tab" data-tab="eda">Análisis descriptivo</button>
+      <button class="tab" data-tab="clean">Limpieza</button>
+      <button class="tab" data-tab="ml">Machine Learning</button>
+    </nav>
+
+    <div class="workspace">
+      <main class="tools">
+        <section id="panel-ingest" class="panel is-active">
+          <h2>Ingesta de datos</h2>
+          <p class="lede">Carga un CSV, TSV o Excel. Detectamos encoding y separador; la vista previa muestra las primeras 20 filas.</p>
+          <label class="drop" id="dropzone" data-tip="Formatos: .csv .tsv .xlsx .xls">
+            <input type="file" id="file-input" accept=".csv,.tsv,.xlsx,.xls" />
+            <span class="drop-title">Arrastra el dataset aquí</span>
+            <span class="drop-sub">o haz clic · CSV, TSV, Excel</span>
+          </label>
+          <div id="ingest-meta" class="metrics"></div>
+          <details class="tech-details">
+            <summary>Detalles técnicos de lectura</summary>
+            <div id="ingest-tech" class="muted"></div>
+          </details>
+          <div id="ingest-table" class="table-wrap"></div>
+        </section>
+
+        <section id="panel-eda" class="panel">
+          <h2>Análisis descriptivo</h2>
+          <p class="lede">Métricas, descriptivos, calidad y gráficos. El copiloto usa el agente de EDA en esta pestaña.</p>
+
+          <article>
+            <h3>Métricas generales</h3>
+            <div id="eda-metrics" class="metrics"></div>
+            <div id="eda-dtypes" class="table-wrap"></div>
+          </article>
+
+          <article>
+            <h3>Estadística descriptiva</h3>
+            <div id="eda-numeric" class="table-wrap"></div>
+            <h4 class="subhead">Resumen categórico</h4>
+            <div id="eda-cats" class="table-wrap"></div>
+            <div class="row">
+              <label>Explorar columna categórica
+                <select id="eda-cat-sel"><option value="">—</option></select>
+              </label>
+            </div>
+            <div id="eda-cat-detail" class="table-wrap"></div>
+          </article>
+
+          <article>
+            <h3>Diagnóstico de calidad</h3>
+            <div id="eda-quality" class="table-wrap"></div>
+          </article>
+
+          <article>
+            <h3>Visualización</h3>
+            <div data-subtabs>
+              <div class="subtabs" role="tablist">
+                <button type="button" class="subtab is-active" data-pane="viz-hist">Histogramas</button>
+                <button type="button" class="subtab" data-pane="viz-box">Boxplots</button>
+                <button type="button" class="subtab" data-pane="viz-corr">Correlación</button>
+              </div>
+              <div id="viz-hist" class="subpane is-active">
+                <div class="row">
+                  <div class="picker-field">
+                    <span class="picker-label">Columnas</span>
+                    <div class="picker" id="hist-col" data-picker></div>
+                  </div>
+                  <button type="button" id="btn-hist">Dibujar</button>
+                </div>
+              </div>
+              <div id="viz-box" class="subpane">
+                <div class="row">
+                  <div class="picker-field">
+                    <span class="picker-label">Columnas numéricas</span>
+                    <div class="picker" id="box-cols" data-picker></div>
+                  </div>
+                  <button type="button" id="btn-box">Dibujar</button>
+                </div>
+              </div>
+              <div id="viz-corr" class="subpane">
+                <div class="row">
+                  <button type="button" id="btn-corr">Matriz de correlación</button>
+                </div>
+              </div>
+            </div>
+            <div class="plot-wrap">
+              <div class="plot-bar" hidden>
+                <button type="button" id="btn-clear-plot" class="ghost" hidden>Borrar gráfico</button>
+              </div>
+              <div id="eda-plot" class="plot"></div>
+            </div>
+          </article>
+        </section>
+
+        <section id="panel-clean" class="panel">
+          <h2>Limpieza y transformación</h2>
+          <p class="lede">Cada acción guarda historial (máx. 15) para deshacer. El copiloto puede generar pandas para transformaciones que no tienen botón.</p>
+          <div class="toolbar">
+            <button type="button" id="btn-undo" class="ghost">Deshacer</button>
+            <a class="button ghost" href="/api/v1/wrangling/export" id="btn-export">Exportar CSV</a>
+          </div>
+          <div id="clean-table" class="table-wrap"></div>
+
+          <article>
+            <h3>Nulos y duplicados</h3>
+            <div class="split-2">
+              <div>
+                <h4 class="subhead">Imputación de nulos</h4>
+                <div class="row">
+                  <div class="picker-field">
+                    <span class="picker-label">Columnas a imputar</span>
+                    <div class="picker" id="impute-cols" data-picker></div>
+                  </div>
+                  <label>Estrategia
+                    <select id="impute-strategy">
+                      <option>Media</option><option>Mediana</option><option>Moda</option>
+                      <option>Constante</option><option>Eliminar filas</option>
+                    </select>
+                  </label>
+                  <label id="impute-value-wrap" hidden>Valor constante <input id="impute-value" /></label>
+                  <button type="button" data-op="impute">Aplicar imputación</button>
+                </div>
+              </div>
+              <div>
+                <h4 class="subhead">Duplicados</h4>
+                <p class="hint">Filas duplicadas detectadas: <b id="dup-count">—</b></p>
+                <button type="button" data-op="drop_duplicates">Eliminar duplicados</button>
+              </div>
+            </div>
+          </article>
+
+          <article>
+            <h3>Casteo y tipado</h3>
+            <div class="row">
+              <div class="picker-field">
+                <span class="picker-label">Columnas a convertir</span>
+                    <div class="picker" id="cast-col" data-picker></div>
+              </div>
+              <label>Tipo destino
+                <select id="cast-type">
+                  <option>string</option><option>numeric</option><option>datetime</option><option>category</option>
+                </select>
+              </label>
+              <button type="button" data-op="cast">Convertir tipo</button>
+            </div>
+          </article>
+
+          <article>
+            <h3>Feature engineering</h3>
+            <div data-subtabs>
+              <div class="subtabs" role="tablist">
+                <button type="button" class="subtab is-active" data-pane="fe-scale">Escalado</button>
+                <button type="button" class="subtab" data-pane="fe-encode">Codificación</button>
+                <button type="button" class="subtab" data-pane="fe-cols">Renombrar / eliminar</button>
+              </div>
+              <div id="fe-scale" class="subpane is-active">
+                <div class="row">
+                  <div class="picker-field">
+                    <span class="picker-label">Columnas numéricas</span>
+                    <div class="picker" id="scale-cols" data-picker></div>
+                  </div>
+                  <label>Método
+                    <select id="scale-method">
+                      <option>StandardScaler</option><option>MinMaxScaler</option>
+                    </select>
+                  </label>
+                  <button type="button" data-op="scale">Aplicar escalado</button>
+                </div>
+              </div>
+              <div id="fe-encode" class="subpane">
+                <div class="row">
+                  <div class="picker-field">
+                    <span class="picker-label">Columnas categóricas</span>
+                    <div class="picker" id="encode-cols" data-picker></div>
+                  </div>
+                  <label>Método
+                    <select id="encode-method">
+                      <option>One-Hot Encoding</option><option>Label Encoding</option>
+                    </select>
+                  </label>
+                  <button type="button" data-op="encode">Aplicar codificación</button>
+                </div>
+              </div>
+              <div id="fe-cols" class="subpane">
+                <div class="split-2">
+                  <div class="stack">
+                    <h4 class="subhead">Renombrar</h4>
+                    <label>Columna a renombrar <select id="rename-old"></select></label>
+                    <label>Nuevo nombre <input id="rename-new" /></label>
+                    <button type="button" data-op="rename">Renombrar</button>
+                  </div>
+                  <div class="stack">
+                    <h4 class="subhead">Eliminar</h4>
+                    <div class="picker-field">
+                      <span class="picker-label">Columnas a eliminar</span>
+                      <div class="picker" id="drop-cols" data-picker></div>
+                    </div>
+                    <button type="button" data-op="drop_columns" class="danger">Eliminar columnas</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section id="panel-ml" class="panel">
+          <h2>Machine Learning</h2>
+          <p class="lede">Si hay nulos, limpia antes. La heurística sugiere clasificación cuando hay ≤ 15 valores únicos; puedes forzar el tipo.</p>
+          <div data-subtabs>
+            <div class="subtabs" role="tablist">
+              <button type="button" class="subtab is-active" data-pane="ml-sup">Supervisado</button>
+              <button type="button" class="subtab" data-pane="ml-unsup">No supervisado</button>
+            </div>
+            <div id="ml-sup" class="subpane is-active">
+              <div class="row">
+                <label>Variable objetivo (Y) <select id="ml-target"></select></label>
+                <div class="picker-field">
+                  <span class="picker-label">Variables predictoras (X)</span>
+                  <div class="picker" id="ml-features" data-picker></div>
+                </div>
+                <label>Tipo de problema
+                  <select id="ml-task">
+                    <option>Clasificación</option><option>Regresión</option>
+                  </select>
+                </label>
+                <label>Algoritmo <select id="ml-algo"></select></label>
+                <label>Proporción de test <input id="ml-test" type="number" min="0.1" max="0.5" step="0.05" value="0.2" /></label>
+                <button type="button" id="btn-train">Entrenar modelo</button>
+              </div>
+            </div>
+            <div id="ml-unsup" class="subpane">
+              <div class="row">
+                <div class="picker-field">
+                  <span class="picker-label">Columnas numéricas</span>
+                    <div class="picker" id="ml-unsup-feats" data-picker></div>
+                </div>
+                <label>Método
+                  <select id="ml-unsup-method">
+                    <option value="elbow">K-Means (codo)</option>
+                    <option value="kmeans">K-Means</option>
+                    <option value="dbscan">DBSCAN</option>
+                    <option value="pca">PCA</option>
+                  </select>
+                </label>
+                <label id="unsup-k">K / max K <input id="ml-k" type="number" value="3" min="2" /></label>
+                <label id="unsup-eps" hidden>eps <input id="ml-eps" type="number" value="0.5" step="0.1" /></label>
+                <label id="unsup-min" hidden>min_samples <input id="ml-min-samples" type="number" value="5" min="1" /></label>
+                <label id="unsup-pca" hidden>PCA dims
+                  <select id="ml-pca-dim"><option>2</option><option>3</option></select>
+                </label>
+                <button type="button" id="btn-unsup">Ejecutar</button>
+              </div>
+            </div>
+          </div>
+          <pre id="ml-metrics" class="codeblock"></pre>
+          <div class="plot-wrap">
+            <div class="plot-bar" hidden>
+              <button type="button" id="btn-clear-ml-plot" class="ghost" hidden>Borrar gráfico</button>
+            </div>
+            <div id="ml-plot" class="plot"></div>
+          </div>
+        </section>
+      </main>
+
+      <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Redimensionar copiloto"></div>
+
+      <aside class="chat" id="chat-aside" aria-label="Copiloto">
+        <div class="chat-actions">
+          <button type="button" class="chat-toggle" id="chat-toggle" aria-label="Colapsar chat" aria-expanded="true" aria-controls="chat-log">⟨</button>
+        </div>
+        <header>
+          <p class="eyebrow">multiagente</p>
+          <h2>Copiloto</h2>
+          <p id="chat-specialist" class="muted" aria-live="polite">Especialista: descriptivo</p>
+          <p class="hint">El resultado de Ejecutar aparece aquí abajo, en el chat.</p>
+        </header>
+        <div id="chat-log" class="chat-log"></div>
+        <form id="chat-form" class="composer">
+          <textarea id="chat-input" rows="2" placeholder="Pregunta o pide una transformación…" autocomplete="off" enterkeyhint="send"></textarea>
+          <button type="submit">Enviar</button>
+        </form>
+      </aside>
+    </div>
+  </div>
+  <div id="toast" class="toast" hidden role="status"></div>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
