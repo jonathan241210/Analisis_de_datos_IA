@@ -32,4 +32,22 @@ def test_exec_only_after_validation_blocks_subprocess():
     df = pd.DataFrame({"a": [1]})
     result = run_generated_code("import subprocess", df)
     assert result.success is False
-    assert "no permitido" in (result.error or "").lower()
+    assert result.error == "No se pudo ejecutar el código."
+    assert "traceback" not in (result.error or "").lower()
+    assert "subprocess" not in (result.error or "").lower()
+
+
+def test_np_select_string_choices_default_zero():
+    df = pd.DataFrame({"antiguedad": [1, 5, 12]})
+    code = """
+conditions = [
+    df["antiguedad"] < 3,
+    (df["antiguedad"] >= 3) & (df["antiguedad"] <= 8),
+    df["antiguedad"] > 8,
+]
+choices = ["Junior", "Mid", "Senior"]
+df["nivel_antiguedad"] = np.select(conditions, choices)
+"""
+    result = run_generated_code(code, df)
+    assert result.success, result.error
+    assert result.df["nivel_antiguedad"].tolist() == ["Junior", "Mid", "Senior"]

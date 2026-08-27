@@ -9,6 +9,8 @@ Si pides gráfica, asigna la figura a `fig` (Plotly preferido).
 Si modificas el dataset, reasigna a `df`.
 Si solo muestras una tabla auxiliar, asígnala a `display_df`.
 Usa nombres de columna LITERALES del esquema.
+Si usas np.select con opciones de texto, pasa default="" (nunca el 0 por defecto).
+Para rangos (junior/mid/senior, bins), prefiere pd.cut.
 """
 
 ORCHESTRATOR_PROMPT = SHARED_RULES + """

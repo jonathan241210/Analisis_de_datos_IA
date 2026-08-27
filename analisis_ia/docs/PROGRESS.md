@@ -2,7 +2,7 @@
 
 ## Current slice
 
-Slice 5 complete — chip column pickers, floating toasts, execute results in chat, resizable copiloto.
+Slice 7 complete — np.select sandbox compat, one retry per bubble, green copy/ok, chat stop/edit, user-safe errors (logs in terminal), undo-all + tooltips above.
 
 ## Completed
 
@@ -34,6 +34,22 @@ Slice 5 complete — chip column pickers, floating toasts, execute results in ch
 - `POST /chat/execute` still updates tab previews when `df` mutates; stdout, display/preview table, and Plotly `fig` also render in a result block under **Ejecutar**. Sandbox errors show in that block.
 - Copilot: “Pensando…” while waiting, short typewriter + code reveal (skipped if `prefers-reduced-motion`), larger bubbles, splitter +/− with `localStorage` (width on desktop, height under ~1100px). Composer stays `flex-shrink: 0`.
 - Pytest: 14 passed (`analisis_ia/tests`).
+
+### Slice 6
+
+- Execute figures redirect to the EDA or ML visualization slot; they are not duplicated in chat.
+- Query `display_df` tables stay in the chat; Limpieza’s dataset table is only updated when `df` mutates.
+- Copiar on code blocks; async buttons show a spinner then a short success check.
+- Aside: Gemini model name from settings; no MULTIAGENTE / specialist line. Splitter is an invisible drag handle.
+- EDA report loads when a dataset preview is applied (not only on tab click), so metrics/quality are filled before opening the tab. Static CSS/JS are cache-busted (`?v=`).
+- Pytest: 19 passed (`analisis_ia/tests`).
+
+### Slice 7
+
+- Sandbox `np.select` string choices; execute errors are generic in the UI; technical detail is logged.
+- Chat: Detener (client abort) and Editar on user messages; a single Reiniciar respuesta per assistant bubble.
+- Limpieza: undo last vs reset all; tooltips above the buttons; dropzone has no duplicate tip.
+- Pytest: 20 passed (`analisis_ia/tests`).
 
 ## Blocked
 

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;1,8..60,400;1,8..60,500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/css/app.css?v={{ asset_v }}" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 <body>
@@ -33,7 +33,7 @@
         <section id="panel-ingest" class="panel is-active">
           <h2>Ingesta de datos</h2>
           <p class="lede">Carga un CSV, TSV o Excel. Detectamos encoding y separador; la vista previa muestra las primeras 20 filas.</p>
-          <label class="drop" id="dropzone" data-tip="Formatos: .csv .tsv .xlsx .xls">
+          <label class="drop" id="dropzone">
             <input type="file" id="file-input" accept=".csv,.tsv,.xlsx,.xls" />
             <span class="drop-title">Arrastra el dataset aquí</span>
             <span class="drop-sub">o haz clic · CSV, TSV, Excel</span>
@@ -119,8 +119,9 @@
           <h2>Limpieza y transformación</h2>
           <p class="lede">Cada acción guarda historial (máx. 15) para deshacer. El copiloto puede generar pandas para transformaciones que no tienen botón.</p>
           <div class="toolbar">
-            <button type="button" id="btn-undo" class="ghost">Deshacer</button>
-            <a class="button ghost" href="/api/v1/wrangling/export" id="btn-export">Exportar CSV</a>
+            <button type="button" id="btn-undo" class="ghost" data-tip="Revierte solo la última transformación aplicada al dataset.">Deshacer último cambio</button>
+            <button type="button" id="btn-undo-all" class="ghost" data-tip="Vuelve al archivo original, sin ninguna limpieza posterior.">Deshacer todos los cambios</button>
+            <a class="button ghost" href="/api/v1/wrangling/export" id="btn-export" data-tip="Descarga el dataset actual como CSV.">Exportar CSV</a>
           </div>
           <div id="clean-table" class="table-wrap"></div>
 
@@ -292,10 +293,9 @@
           <button type="button" class="chat-toggle" id="chat-toggle" aria-label="Colapsar chat" aria-expanded="true" aria-controls="chat-log">⟨</button>
         </div>
         <header>
-          <p class="eyebrow">multiagente</p>
           <h2>Copiloto</h2>
-          <p id="chat-specialist" class="muted" aria-live="polite">Especialista: descriptivo</p>
-          <p class="hint">El resultado de Ejecutar aparece aquí abajo, en el chat.</p>
+          <p id="chat-model" class="muted" aria-live="polite">{{ gemini_model }}</p>
+          <p class="hint">Las tablas de Ejecutar aparecen en el chat. Las gráficas se abren en Visualización (EDA o ML).</p>
         </header>
         <div id="chat-log" class="chat-log"></div>
         <form id="chat-form" class="composer">
@@ -306,6 +306,6 @@
     </div>
   </div>
   <div id="toast" class="toast" hidden role="status"></div>
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/app.js?v={{ asset_v }}"></script>
 </body>
 </html>

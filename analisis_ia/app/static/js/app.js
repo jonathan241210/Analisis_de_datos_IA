@@ -1,5 +1,4 @@
 const TAB_TO_AGENT = { ingest: "eda", eda: "eda", clean: "cleaning", ml: "ml" };
-const AGENT_LABEL = { eda: "descriptivo", cleaning: "limpieza", ml: "machine learning" };
 const PICKER_IDS = [
   "hist-col", "box-cols", "impute-cols", "cast-col", "scale-cols",
   "encode-cols", "drop-cols", "ml-features", "ml-unsup-feats",
@@ -14,10 +13,77 @@ let classifiers = [];
 let regressors = [];
 let ingestMeta = null;
 let toastTimer = 0;
-let plotSeq = 0;
+const UI_ERR = {
+  chat: "La IA no responde",
+  execute: "No se pudo ejecutar el código",
+  plot: "Error al generar el gráfico",
+  ml: "Error al entrenar el modelo",
+  wrangle: "Error al aplicar la transformación",
+  upload: "Error al cargar el archivo",
+  eda: "Error al cargar el análisis descriptivo",
+  abort: "Petición cancelada",
+  copy: "No se pudo copiar el código",
+};
+
+let chatAbort = null;
+let editingBubble = null;
 
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function setButtonBusy(btn, busyLabel) {
+  if (!btn) return;
+  if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+  btn.classList.remove("is-ok");
+  btn.classList.add("is-busy");
+  btn.disabled = true;
+  btn.setAttribute("aria-busy", "true");
+  if (busyLabel) btn.textContent = busyLabel;
+}
+
+function clearButtonBusy(btn) {
+  if (!btn) return;
+  btn.classList.remove("is-busy", "is-ok");
+  btn.removeAttribute("aria-busy");
+  if (btn.dataset.label) btn.textContent = btn.dataset.label;
+  btn.disabled = false;
+}
+
+async function markButtonOk(btn, ms = 700) {
+  if (!btn) return;
+  const original = btn.dataset.label || btn.textContent;
+  btn.classList.remove("is-busy");
+  btn.classList.add("is-ok");
+  btn.removeAttribute("aria-busy");
+  if (btn.dataset.okLabel) btn.textContent = btn.dataset.okLabel;
+  else btn.textContent = original;
+  btn.disabled = true;
+  await sleep(prefersReducedMotion() ? 0 : ms);
+  btn.classList.remove("is-ok");
+  btn.textContent = original;
+  btn.disabled = false;
+}
+
+async function withBusy(btn, fn, busyLabel) {
+  if (!btn) return fn();
+  setButtonBusy(btn, busyLabel);
+  try {
+    const result = await fn();
+    await markButtonOk(btn);
+    return result;
+  } catch (err) {
+    clearButtonBusy(btn);
+    throw err;
+  }
+}
+
+function isAbortError(err) {
+  return Boolean(err && (err.name === "AbortError" || err.message === "The user aborted a request."));
 }
 
 function isChatStacked() {
@@ -75,7 +141,9 @@ async function api(path, opts = {}) {
       const body = await res.json();
       detail = body.detail || JSON.stringify(body);
     } catch (_) { /* ignore */ }
-    throw new Error(detail);
+    const err = new Error(detail);
+    err.status = res.status;
+    throw err;
   }
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) return res.json();
@@ -97,6 +165,7 @@ function renderTable(container, preview) {
 }
 
 function recordsTable(container, rows) {
+  if (!container) return;
   if (!rows || !rows.length) {
     container.innerHTML = "";
     return;
@@ -267,6 +336,10 @@ function applyPreview(preview, fileName) {
   renderTable(document.getElementById("clean-table"), preview);
   renderIngestMeta(ingestMeta, preview);
   syncColumns(preview);
+  if (preview && preview.columns && preview.columns.length) {
+    loadEda();
+    if (activeTab === "ml") loadMlOptions();
+  }
 }
 
 function syncColumns(preview) {
@@ -300,18 +373,21 @@ async function refreshPreview() {
   }
 }
 
+function setActiveTab(name) {
+  const btn = document.querySelector(`.tab[data-tab="${name}"]`);
+  if (!btn) return;
+  document.querySelectorAll(".tab").forEach((b) => b.classList.remove("is-active"));
+  btn.classList.add("is-active");
+  activeTab = name;
+  document.querySelectorAll(".panel").forEach((p) => p.classList.remove("is-active"));
+  const panel = document.getElementById(`panel-${activeTab}`);
+  if (panel) panel.classList.add("is-active");
+  if (activeTab === "eda") loadEda();
+  if (activeTab === "ml") loadMlOptions();
+}
+
 document.querySelectorAll(".tab").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach((b) => b.classList.remove("is-active"));
-    btn.classList.add("is-active");
-    activeTab = btn.dataset.tab;
-    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("is-active"));
-    document.getElementById(`panel-${activeTab}`).classList.add("is-active");
-    const spec = TAB_TO_AGENT[activeTab];
-    document.getElementById("chat-specialist").textContent = `Especialista: ${AGENT_LABEL[spec]}`;
-    if (activeTab === "eda") loadEda();
-    if (activeTab === "ml") loadMlOptions();
-  });
+  btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
 });
 
 document.querySelectorAll("[data-subtabs]").forEach((group) => {
@@ -352,7 +428,7 @@ async function uploadFile(file) {
     applyPreview(data.preview, data.meta.file_name);
     toast("Archivo cargado");
   } catch (err) {
-    toast(err.message, "error");
+    toast(UI_ERR.upload, "error");
   } finally {
     document.getElementById("file-input").value = "";
   }
@@ -420,31 +496,39 @@ document.getElementById("ml-unsup-method").addEventListener("change", syncUnsupF
 syncUnsupFields();
 
 async function loadEda() {
+  const metricsEl = document.getElementById("eda-metrics");
   try {
     const report = await api("/api/v1/eda/report");
     const m = report.metrics;
+    if (!m || metricsEl == null) return;
     const zv = (m.zero_variance_columns || []).length;
-    document.getElementById("eda-metrics").innerHTML = [
+    metricsEl.innerHTML = [
       ["Filas × columnas", `${m.rows} × ${m.columns}`],
       ["Memoria", m.memory],
       ["Duplicados", m.duplicate_rows],
       ["Varianza cero", zv],
     ].map(([k, v]) => `<div class="metric"><small>${k}</small><b>${v}</b></div>`).join("");
     recordsTable(document.getElementById("eda-dtypes"), m.dtypes);
-    recordsTable(document.getElementById("eda-numeric"), report.stats.numeric);
-    recordsTable(document.getElementById("eda-cats"), report.stats.categorical);
+    recordsTable(document.getElementById("eda-numeric"), report.stats && report.stats.numeric);
+    recordsTable(document.getElementById("eda-cats"), report.stats && report.stats.categorical);
     renderTable(document.getElementById("eda-quality"), {
       columns: ["columna", "nulos", "pct_nulos", "tipo"],
-      rows: report.quality.columns,
+      rows: (report.quality && report.quality.columns) || [],
     });
     const catSel = document.getElementById("eda-cat-sel");
-    catSel.innerHTML = `<option value="">—</option>`
-      + (report.categorical_columns || []).map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
-    document.getElementById("eda-cat-detail").innerHTML = "";
+    if (catSel) {
+      catSel.innerHTML = `<option value="">—</option>`
+        + (report.categorical_columns || []).map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+    }
+    const detail = document.getElementById("eda-cat-detail");
+    if (detail) detail.innerHTML = "";
     fillPicker(document.getElementById("hist-col"), report.numeric_columns || []);
     fillPicker(document.getElementById("box-cols"), report.numeric_columns || []);
   } catch (err) {
-    toast(err.message, "error", document.getElementById("panel-eda"));
+    if (metricsEl) {
+      metricsEl.innerHTML = `<p class="hint">${esc(UI_ERR.eda)}</p>`;
+    }
+    toast(UI_ERR.eda, "error");
   }
 }
 
@@ -459,7 +543,7 @@ document.getElementById("eda-cat-sel").addEventListener("change", async (ev) => 
     const data = await api(`/api/v1/eda/value-counts?column=${encodeURIComponent(col)}`);
     renderTable(box, data);
   } catch (err) {
-    toast(err.message, "error", ev.target);
+    toast(UI_ERR.eda, "error");
   }
 });
 
@@ -489,7 +573,7 @@ function drawFigure(elOrId, fig) {
     el.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "nearest" });
     return true;
   } catch (err) {
-    toast(err.message || "No se pudo dibujar el gráfico", "error");
+    toast(UI_ERR.plot, "error");
     return false;
   }
 }
@@ -523,33 +607,39 @@ document.getElementById("btn-hist").addEventListener("click", async (ev) => {
     return;
   }
   try {
-    const data = await api(`/api/v1/eda/histogram?${columnsQuery(cols)}`);
-    drawFigure("eda-plot", data.figure);
+    await withBusy(ev.currentTarget, async () => {
+      const data = await api(`/api/v1/eda/histogram?${columnsQuery(cols)}`);
+      drawFigure("eda-plot", data.figure);
+    }, "Dibujando…");
   } catch (err) {
-    toast(err.message, "error");
+    toast(UI_ERR.plot, "error");
   }
 });
 
 document.getElementById("btn-box").addEventListener("click", async (ev) => {
   const cols = selected("box-cols");
   if (!cols.length) {
-    toast("Elige al menos una columna para el boxplot.", "error", ev.target);
+    toast("Elige al menos una columna para el boxplot.", "error");
     return;
   }
   try {
-    const data = await api(`/api/v1/eda/boxplot?${columnsQuery(cols)}`);
-    drawFigure("eda-plot", data.figure);
+    await withBusy(ev.currentTarget, async () => {
+      const data = await api(`/api/v1/eda/boxplot?${columnsQuery(cols)}`);
+      drawFigure("eda-plot", data.figure);
+    }, "Dibujando…");
   } catch (err) {
-    toast(err.message, "error");
+    toast(UI_ERR.plot, "error");
   }
 });
 
 document.getElementById("btn-corr").addEventListener("click", async (ev) => {
   try {
-    const data = await api("/api/v1/eda/correlation");
-    drawFigure("eda-plot", data.figure);
+    await withBusy(ev.currentTarget, async () => {
+      const data = await api("/api/v1/eda/correlation");
+      drawFigure("eda-plot", data.figure);
+    }, "Dibujando…");
   } catch (err) {
-    toast(err.message, "error");
+    toast(UI_ERR.plot, "error");
   }
 });
 
@@ -565,17 +655,19 @@ const WRANGLE_OK = {
 
 async function wrangle(op, extra = {}, anchor = null) {
   try {
-    const data = await api("/api/v1/wrangling/apply", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ op, ...extra }),
+    await withBusy(anchor, async () => {
+      const data = await api("/api/v1/wrangling/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op, ...extra }),
+      });
+      applyPreview(data.preview);
+      const n = (extra.columns || []).length;
+      const msg = (WRANGLE_OK[op] || (() => "Transformación aplicada"))(n);
+      toast(msg, "ok", anchor);
     });
-    applyPreview(data.preview);
-    const n = (extra.columns || []).length;
-    const msg = (WRANGLE_OK[op] || (() => "Transformación aplicada"))(n);
-    toast(msg, "ok", anchor);
   } catch (err) {
-    toast(err.message, "error", anchor);
+    toast(UI_ERR.wrangle, "error", anchor);
   }
 }
 
@@ -608,15 +700,33 @@ document.querySelectorAll("[data-op]").forEach((btn) => {
 
 document.getElementById("btn-undo").addEventListener("click", async (ev) => {
   try {
-    const data = await api("/api/v1/wrangling/undo", { method: "POST" });
-    if (!data.undone) {
-      toast("Nada que deshacer", "info");
-      return;
-    }
-    applyPreview(data.preview);
-    toast("Se deshizo la última operación", "ok");
+    await withBusy(ev.currentTarget, async () => {
+      const data = await api("/api/v1/wrangling/undo", { method: "POST" });
+      if (!data.undone) {
+        toast("Nada que deshacer", "info");
+        return;
+      }
+      applyPreview(data.preview);
+      toast("Se deshizo la última operación", "ok");
+    });
   } catch (err) {
-    toast(err.message, "error", ev.target);
+    toast(UI_ERR.wrangle, "error");
+  }
+});
+
+document.getElementById("btn-undo-all").addEventListener("click", async (ev) => {
+  try {
+    await withBusy(ev.currentTarget, async () => {
+      const data = await api("/api/v1/wrangling/reset", { method: "POST" });
+      if (!data.reset) {
+        toast("Nada que deshacer", "info");
+        return;
+      }
+      applyPreview(data.preview);
+      toast("Se restauró el dataset original", "ok");
+    });
+  } catch (err) {
+    toast(UI_ERR.wrangle, "error");
   }
 });
 
@@ -638,7 +748,7 @@ async function loadMlOptions() {
     if (opts.suggested[t]) document.getElementById("ml-task").value = opts.suggested[t];
     syncAlgo();
   } catch (err) {
-    toast(err.message, "error", document.getElementById("panel-ml"));
+    toast(UI_ERR.ml, "error");
   }
 }
 
@@ -647,45 +757,49 @@ document.getElementById("ml-target").addEventListener("change", loadMlOptions);
 
 document.getElementById("btn-train").addEventListener("click", async (ev) => {
   try {
-    const data = await api("/api/v1/ml/supervised", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        target: document.getElementById("ml-target").value,
-        features: selected("ml-features"),
-        task_type: document.getElementById("ml-task").value,
-        algorithm: document.getElementById("ml-algo").value,
-        test_size: Number(document.getElementById("ml-test").value),
-      }),
-    });
-    document.getElementById("ml-metrics").textContent = JSON.stringify(data, (k, v) => (k === "figures" ? "[figuras]" : v), 2);
-    if (data.figures && data.figures[0]) drawFigure("ml-plot", data.figures[0]);
-    toast("Modelo entrenado", "ok", ev.target);
+    await withBusy(ev.currentTarget, async () => {
+      const data = await api("/api/v1/ml/supervised", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: document.getElementById("ml-target").value,
+          features: selected("ml-features"),
+          task_type: document.getElementById("ml-task").value,
+          algorithm: document.getElementById("ml-algo").value,
+          test_size: Number(document.getElementById("ml-test").value),
+        }),
+      });
+      document.getElementById("ml-metrics").textContent = JSON.stringify(data, (k, v) => (k === "figures" ? "[figuras]" : v), 2);
+      if (data.figures && data.figures[0]) drawFigure("ml-plot", data.figures[0]);
+      toast("Modelo entrenado", "ok");
+    }, "Entrenando…");
   } catch (err) {
-    toast(err.message, "error", ev.target);
+    toast(UI_ERR.ml, "error");
   }
 });
 
 document.getElementById("btn-unsup").addEventListener("click", async (ev) => {
   try {
-    const data = await api("/api/v1/ml/unsupervised", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        features: selected("ml-unsup-feats"),
-        method: document.getElementById("ml-unsup-method").value,
-        k: Number(document.getElementById("ml-k").value),
-        max_k: Number(document.getElementById("ml-k").value),
-        eps: Number(document.getElementById("ml-eps").value),
-        min_samples: Number(document.getElementById("ml-min-samples").value),
-        n_components: Number(document.getElementById("ml-pca-dim").value),
-      }),
-    });
-    document.getElementById("ml-metrics").textContent = JSON.stringify(data, (k, v) => (k === "figures" ? "[figuras]" : v), 2);
-    if (data.figures && data.figures[0]) drawFigure("ml-plot", data.figures[0]);
-    toast("Análisis no supervisado listo", "ok", ev.target);
+    await withBusy(ev.currentTarget, async () => {
+      const data = await api("/api/v1/ml/unsupervised", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          features: selected("ml-unsup-feats"),
+          method: document.getElementById("ml-unsup-method").value,
+          k: Number(document.getElementById("ml-k").value),
+          max_k: Number(document.getElementById("ml-k").value),
+          eps: Number(document.getElementById("ml-eps").value),
+          min_samples: Number(document.getElementById("ml-min-samples").value),
+          n_components: Number(document.getElementById("ml-pca-dim").value),
+        }),
+      });
+      document.getElementById("ml-metrics").textContent = JSON.stringify(data, (k, v) => (k === "figures" ? "[figuras]" : v), 2);
+      if (data.figures && data.figures[0]) drawFigure("ml-plot", data.figures[0]);
+      toast("Análisis no supervisado listo", "ok");
+    }, "Ejecutando…");
   } catch (err) {
-    toast(err.message, "error", ev.target);
+    toast(UI_ERR.ml, "error");
   }
 });
 
@@ -722,9 +836,29 @@ function addRetryButton(parent, onClick) {
   btn.type = "button";
   btn.className = "ghost retry-btn";
   btn.textContent = "Reiniciar respuesta";
-  btn.addEventListener("click", () => onClick(btn));
+  btn.addEventListener("click", async () => {
+    try {
+      await withBusy(btn, () => onClick(btn), "Reiniciando…");
+    } catch (_) { /* shown in chat */ }
+  });
   parent.appendChild(btn);
   return btn;
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
 }
 
 function appendCodeBlock(div, code) {
@@ -733,13 +867,86 @@ function appendCodeBlock(div, code) {
   const pre = document.createElement("pre");
   pre.textContent = code;
   if (!prefersReducedMotion()) pre.classList.add("is-revealing");
+  const actions = document.createElement("div");
+  actions.className = "code-run-actions";
   const runBtn = document.createElement("button");
   runBtn.type = "button";
   runBtn.textContent = "Ejecutar";
   runBtn.addEventListener("click", () => runCode(code, runBtn));
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "ghost";
+  copyBtn.textContent = "Copiar";
+  copyBtn.setAttribute("aria-label", "Copiar código");
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await copyText(code);
+      if (!copyBtn.dataset.label) copyBtn.dataset.label = "Copiar";
+      copyBtn.dataset.okLabel = "Copiado";
+      await markButtonOk(copyBtn, 1500);
+    } catch (_) {
+      toast(UI_ERR.copy, "error");
+    }
+  });
+  actions.appendChild(runBtn);
+  actions.appendChild(copyBtn);
   wrap.appendChild(pre);
-  wrap.appendChild(runBtn);
+  wrap.appendChild(actions);
   div.appendChild(wrap);
+}
+
+function setUserBubbleText(div, content) {
+  let body = div.querySelector(".bubble-text");
+  if (!body) {
+    body = document.createElement("div");
+    body.className = "bubble-text";
+    div.prepend(body);
+  }
+  body.innerHTML = esc(content).replace(/\n/g, "<br>");
+  div.dataset.message = content;
+}
+
+function addEditButton(div, content) {
+  div.dataset.message = content;
+  if (div.querySelector(".bubble-edit")) return;
+  const edit = document.createElement("button");
+  edit.type = "button";
+  edit.className = "bubble-edit";
+  edit.textContent = "Editar";
+  edit.setAttribute("aria-label", "Editar mensaje");
+  edit.addEventListener("click", () => {
+    const ta = document.getElementById("chat-input");
+    ta.value = div.dataset.message || "";
+    editingBubble = div;
+    autosizeComposer();
+    ta.focus();
+  });
+  div.appendChild(edit);
+}
+
+function removeFollowingAssistants(userBubble) {
+  let sib = userBubble.nextElementSibling;
+  while (sib && sib.classList.contains("assistant")) {
+    const next = sib.nextElementSibling;
+    sib.remove();
+    sib = next;
+  }
+}
+
+function setSendMode(mode) {
+  const form = document.getElementById("chat-form");
+  const btn = form && form.querySelector("button[type='submit']");
+  if (!btn) return;
+  if (!btn.dataset.label) btn.dataset.label = "Enviar";
+  btn.classList.remove("danger", "is-busy", "is-ok");
+  btn.disabled = false;
+  btn.removeAttribute("aria-busy");
+  if (mode === "stop") {
+    btn.textContent = "Detener";
+    btn.classList.add("danger");
+  } else {
+    btn.textContent = btn.dataset.label;
+  }
 }
 
 function appendChat(role, content, codeBlocks = []) {
@@ -750,6 +957,7 @@ function appendChat(role, content, codeBlocks = []) {
   body.className = "bubble-text";
   body.innerHTML = esc(assistantPlain(content)).replace(/\n/g, "<br>");
   div.appendChild(body);
+  if (role === "user") addEditButton(div, content);
   codeBlocks.forEach((code) => appendCodeBlock(div, code));
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
@@ -781,11 +989,13 @@ function showThinking() {
 }
 
 function ensureResultBox(runBtn) {
-  let box = runBtn.nextElementSibling;
+  const actions = runBtn && runBtn.closest(".code-run-actions");
+  const after = actions || runBtn;
+  let box = after ? after.nextElementSibling : null;
   if (!box || !box.classList.contains("exec-result")) {
     box = document.createElement("div");
     box.className = "exec-result";
-    runBtn.after(box);
+    if (after) after.after(box);
   }
   return box;
 }
@@ -807,12 +1017,12 @@ function renderExecResult(box, data) {
     box.appendChild(wrap);
   }
   if (data.fig) {
-    const plot = document.createElement("div");
-    plot.className = "plot exec-plot";
-    plotSeq += 1;
-    plot.id = `exec-plot-${plotSeq}`;
-    box.appendChild(plot);
-    drawFigure(plot, data.fig);
+    const p = document.createElement("p");
+    p.className = "exec-fig-note";
+    p.textContent = activeTab === "ml"
+      ? "Gráfico mostrado en Machine Learning."
+      : "Gráfico mostrado en Análisis descriptivo.";
+    box.appendChild(p);
   }
   if (!box.childNodes.length) {
     const p = document.createElement("p");
@@ -822,6 +1032,15 @@ function renderExecResult(box, data) {
   }
 }
 
+function showCopilotFigure(fig) {
+  const destTab = activeTab === "ml" ? "ml" : "eda";
+  const destPlot = destTab === "ml" ? "ml-plot" : "eda-plot";
+  const label = destTab === "ml" ? "Machine Learning" : "Análisis descriptivo";
+  setActiveTab(destTab);
+  drawFigure(destPlot, fig);
+  toast(`Gráfico en ${label}`, "info");
+}
+
 async function runCode(code, runBtn) {
   const box = runBtn ? ensureResultBox(runBtn) : null;
   if (box) {
@@ -829,34 +1048,32 @@ async function runCode(code, runBtn) {
     box.innerHTML = `<p class="exec-status">Ejecutando…</p>`;
   }
   try {
-    const data = await api("/api/v1/chat/execute", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
-    });
-    if (!data.success) {
-      const err = data.error || "Error de ejecución";
-      if (box) {
-        box.classList.add("is-error");
-        box.innerHTML = `<pre class="exec-error">${esc(err)}</pre>`;
-        addRetryButton(box, () => runCode(code, runBtn));
+    await withBusy(runBtn, async () => {
+      const data = await api("/api/v1/chat/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      if (!data.success) {
+        if (box) {
+          box.classList.add("is-error");
+          box.innerHTML = `<p class="exec-error">${esc(data.error || UI_ERR.execute)}</p>`;
+        }
+        toast(UI_ERR.execute, "error");
+        throw new Error(UI_ERR.execute);
       }
-      toast(err, "error");
-      return;
-    }
-    if (data.mutated && data.preview) applyPreview(data.preview);
-    else if (data.display) renderTable(document.getElementById("clean-table"), data.display);
-    if (data.fig) drawFigure(activeTab === "ml" ? "ml-plot" : "eda-plot", data.fig);
-    if (box) renderExecResult(box, data);
-    const log = document.getElementById("chat-log");
-    log.scrollTop = log.scrollHeight;
+      if (data.mutated && data.preview) applyPreview(data.preview);
+      if (data.fig) showCopilotFigure(data.fig);
+      if (box) renderExecResult(box, data);
+      const log = document.getElementById("chat-log");
+      log.scrollTop = log.scrollHeight;
+    }, "Ejecutando…");
   } catch (err) {
-    if (box) {
+    if (box && !box.classList.contains("is-error")) {
       box.classList.add("is-error");
-      box.innerHTML = `<pre class="exec-error">${esc(err.message)}</pre>`;
-      addRetryButton(box, () => runCode(code, runBtn));
+      box.innerHTML = `<p class="exec-error">${esc(UI_ERR.execute)}</p>`;
+      toast(UI_ERR.execute, "error");
     }
-    toast(err.message, "error");
   }
 }
 
@@ -880,45 +1097,64 @@ let lastChatMessage = "";
 
 async function requestAssistant(message, { echoUser = true } = {}) {
   const form = document.getElementById("chat-form");
-  const sendBtn = form.querySelector("button[type='submit']");
   if (!message || form.dataset.busy === "1") return;
   lastChatMessage = message;
-  if (echoUser) appendChat("user", message);
+  if (editingBubble && echoUser) {
+    setUserBubbleText(editingBubble, message);
+    removeFollowingAssistants(editingBubble);
+    editingBubble = null;
+    echoUser = false;
+  } else if (echoUser) {
+    appendChat("user", message);
+  }
   form.dataset.busy = "1";
-  if (sendBtn) sendBtn.disabled = true;
+  setSendMode("stop");
   const thinking = showThinking();
+  chatAbort = new AbortController();
   try {
     const data = await api("/api/v1/chat/message", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, tab: TAB_TO_AGENT[activeTab] }),
+      signal: chatAbort.signal,
     });
     thinking.remove();
-    document.getElementById("chat-specialist").textContent =
-      `Especialista: ${AGENT_LABEL[data.specialist] || data.specialist}`;
     const bubble = await appendAssistant(data.content, data.code_blocks || []);
-    addRetryButton(bubble, async (btn) => {
-      btn.disabled = true;
+    addRetryButton(bubble, async () => {
       bubble.remove();
       await requestAssistant(lastChatMessage, { echoUser: false });
     });
   } catch (err) {
-    thinking.remove();
-    const div = appendChat("assistant", err.message);
+    if (thinking.isConnected) thinking.remove();
+    if (isAbortError(err)) {
+      toast(UI_ERR.abort, "info");
+      const ta = document.getElementById("chat-input");
+      if (ta && !ta.value.trim()) {
+        ta.value = lastChatMessage;
+        autosizeComposer();
+      }
+      return;
+    }
+    const div = appendChat("assistant", UI_ERR.chat);
     div.classList.add("is-error");
-    addRetryButton(div, async (btn) => {
-      btn.disabled = true;
+    addRetryButton(div, async () => {
       div.remove();
       await requestAssistant(lastChatMessage, { echoUser: false });
     });
   } finally {
+    chatAbort = null;
     form.dataset.busy = "0";
-    if (sendBtn) sendBtn.disabled = false;
+    setSendMode("send");
   }
 }
 
 document.getElementById("chat-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
+  const form = document.getElementById("chat-form");
+  if (form.dataset.busy === "1") {
+    if (chatAbort) chatAbort.abort();
+    return;
+  }
   const input = document.getElementById("chat-input");
   const message = input.value.trim();
   if (!message) return;

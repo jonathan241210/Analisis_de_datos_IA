@@ -1,22 +1,26 @@
+import logging
+
 from app.core.config import settings
 from app.core.exceptions import AppError
 
+logger = logging.getLogger("analisis_ia")
+
 
 class GeminiUnavailable(AppError):
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str = "La IA no responde") -> None:
         super().__init__(message, status_code=503)
 
 
 async def generate_reply(system_prompt: str, user_message: str, history: list[dict[str, str]]) -> str:
     if not settings.gemini_api_key:
-        raise GeminiUnavailable(
-            "Falta GEMINI_API_KEY en analisis_ia/.env. Las herramientas estáticas siguen disponibles."
-        )
+        logger.warning("GEMINI_API_KEY missing; chat unavailable")
+        raise GeminiUnavailable()
     try:
         from google import genai
         from google.genai import types
-    except ImportError as exc:
-        raise GeminiUnavailable("El paquete google-genai no está instalado.") from exc
+    except ImportError:
+        logger.exception("google-genai is not installed")
+        raise GeminiUnavailable() from None
 
     client = genai.Client(api_key=settings.gemini_api_key)
     contents: list = []
@@ -35,10 +39,12 @@ async def generate_reply(system_prompt: str, user_message: str, history: list[di
                 max_output_tokens=4096,
             ),
         )
-    except Exception as exc:
-        raise GeminiUnavailable(f"Gemini no respondió: {exc}") from exc
+    except Exception:
+        logger.exception("Gemini generate_content failed")
+        raise GeminiUnavailable() from None
 
     text = getattr(response, "text", None)
     if not text:
-        raise GeminiUnavailable("Respuesta vacía de Gemini.")
+        logger.warning("Gemini returned empty text")
+        raise GeminiUnavailable()
     return text

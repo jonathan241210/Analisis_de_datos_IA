@@ -45,5 +45,12 @@ class SessionStore:
         session.df = session.history.pop()
         return True
 
+    def reset(self, session: AnalysisSession) -> bool:
+        if session.df_original is None:
+            return False
+        session.df = session.df_original.copy()
+        session.history = []
+        return True
+
 
 store = SessionStore()

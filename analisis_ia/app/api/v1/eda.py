@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Query, Request
 
 from app.api.deps import current_session
@@ -12,13 +14,19 @@ from app.services.eda import (
     value_counts_table,
 )
 
+logger = logging.getLogger("analisis_ia")
+
 router = APIRouter(prefix="/eda", tags=["eda"])
 
 
 @router.get("/report")
 async def eda_report(request: Request) -> dict:
     session = store.require_df(current_session(request))
-    return build_eda_report(session.df)
+    try:
+        return build_eda_report(session.df)
+    except Exception:
+        logger.exception("EDA report failed")
+        raise AppError("Error al cargar el análisis descriptivo", 500) from None
 
 
 @router.get("/value-counts")
@@ -50,7 +58,11 @@ async def histogram(
     try:
         return {"figure": histogram_spec(session.df, cols)}
     except ValueError as exc:
+        logger.warning("Histogram rejected: %s", exc)
         raise AppError(str(exc), 400) from exc
+    except Exception:
+        logger.exception("Histogram failed")
+        raise AppError("Error al generar el gráfico", 500) from None
 
 
 @router.get("/boxplot")
@@ -60,7 +72,11 @@ async def boxplot(request: Request, columns: list[str] | None = Query(default=No
     try:
         return {"figure": boxplot_spec(session.df, requested)}
     except ValueError as exc:
+        logger.warning("Boxplot rejected: %s", exc)
         raise AppError(str(exc), 400) from exc
+    except Exception:
+        logger.exception("Boxplot failed")
+        raise AppError("Error al generar el gráfico", 500) from None
 
 
 @router.get("/correlation")
@@ -69,4 +85,8 @@ async def correlation(request: Request) -> dict:
     try:
         return {"figure": correlation_spec(session.df)}
     except ValueError as exc:
+        logger.warning("Correlation rejected: %s", exc)
         raise AppError(str(exc), 400) from exc
+    except Exception:
+        logger.exception("Correlation failed")
+        raise AppError("Error al generar el gráfico", 500) from None

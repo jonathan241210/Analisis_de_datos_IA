@@ -2,6 +2,7 @@ import builtins as _builtins
 import concurrent.futures
 import contextlib
 import io
+import logging
 
 import matplotlib
 matplotlib.use("Agg")
@@ -27,6 +28,11 @@ from app.domain.models import ExecutionResult
 from app.sandbox.validator import ALLOWED_IMPORT_MODULES, UnsafeCodeError, validate_ast
 from app.services.plotly_json import fig_to_dict
 
+logger = logging.getLogger("analisis_ia")
+
+UI_EXECUTE_ERROR = "No se pudo ejecutar el código."
+UI_TIMEOUT_ERROR = "La ejecución superó el tiempo máximo."
+
 
 def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
     if name not in ALLOWED_IMPORT_MODULES:
@@ -42,6 +48,28 @@ def _serialize_fig(fig) -> dict | None:
     return None
 
 
+_orig_select = np.select
+
+
+def _select_compat(condlist, choicelist, default=0, **kwargs):
+    try:
+        return _orig_select(condlist, choicelist, default=default, **kwargs)
+    except TypeError:
+        zero_default = default == 0 and not isinstance(default, (str, bytes))
+        if zero_default:
+            return _orig_select(condlist, choicelist, default="", **kwargs)
+        raise
+
+
+class _NpSandbox:
+    """Expose numpy, with select() tolerant of string choices + default=0."""
+
+    def __getattr__(self, name):
+        if name == "select":
+            return _select_compat
+        return getattr(np, name)
+
+
 def _run(code: str, df: pd.DataFrame) -> ExecutionResult:
     validate_ast(code)
 
@@ -55,7 +83,7 @@ def _run(code: str, df: pd.DataFrame) -> ExecutionResult:
     }
     local_ns = {
         "df": df.copy(),
-        "pd": pd, "np": np, "plt": plt, "sns": sns,
+        "pd": pd, "np": _NpSandbox(), "plt": plt, "sns": sns,
         "px": px, "go": go,
         "linear_model": linear_model, "ensemble": ensemble, "tree": tree,
         "cluster": cluster, "decomposition": decomposition,
@@ -89,11 +117,13 @@ def _run(code: str, df: pd.DataFrame) -> ExecutionResult:
             stdout=stdout_buffer.getvalue(),
         )
     except UnsafeCodeError as exc:
-        return ExecutionResult(success=False, error=str(exc), stdout=stdout_buffer.getvalue())
-    except Exception as exc:
+        logger.warning("Sandbox rejected code: %s", exc)
+        return ExecutionResult(success=False, error=UI_EXECUTE_ERROR, stdout=stdout_buffer.getvalue())
+    except Exception:
+        logger.exception("Sandbox execution failed")
         return ExecutionResult(
             success=False,
-            error=f"{type(exc).__name__}: {exc}",
+            error=UI_EXECUTE_ERROR,
             stdout=stdout_buffer.getvalue(),
         )
 
@@ -102,11 +132,13 @@ def run_generated_code(code: str, df: pd.DataFrame) -> ExecutionResult:
     try:
         validate_ast(code)
     except UnsafeCodeError as exc:
-        return ExecutionResult(success=False, error=str(exc))
+        logger.warning("Sandbox rejected code: %s", exc)
+        return ExecutionResult(success=False, error=UI_EXECUTE_ERROR)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(_run, code, df)
         try:
             return future.result(timeout=settings.sandbox_timeout_s)
         except concurrent.futures.TimeoutError:
-            return ExecutionResult(success=False, error="La ejecución superó el tiempo máximo.")
+            logger.warning("Sandbox execution timed out after %ss", settings.sandbox_timeout_s)
+            return ExecutionResult(success=False, error=UI_TIMEOUT_ERROR)

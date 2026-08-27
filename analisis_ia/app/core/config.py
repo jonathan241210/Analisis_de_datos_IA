@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     )
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.6-flash"
+    gemini_model: str = ""
     supabase_url: str = ""
     supabase_anon_key: str = ""
     n_head_rows: int = 3

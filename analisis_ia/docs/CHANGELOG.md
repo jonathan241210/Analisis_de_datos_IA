@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-08-26 (chat stop/edit, safe errors, undo-all)
+
+### Fixed
+
+- Sandbox `np.select` with string choices no longer fails on NumPy 2’s integer `default=0`; the wrapper uses `default=""`.
+- Duplicate **Reiniciar respuesta** on execute errors removed (retry stays on the assistant bubble only).
+- Execute/chat/plot/ML failures show a short Spanish line in the UI; stack traces go to the uvicorn log (`analisis_ia` logger), not the DOM.
+
+### Added
+
+- Chat **Detener** (AbortController) keeps the user message; **Editar** on user bubbles resends after replacing that turn’s assistant reply.
+- **Deshacer todos los cambios** (`POST /wrangling/reset` restores `df_original`). Last-step undo renamed **Deshacer último cambio**.
+- Green `.is-ok` check on Copiar and async buttons (no dark disabled look).
+
+### Changed
+
+- Tooltips (`data-tip`) open above the control; dropzone tip removed (label already lists formats).
+
+## 2026-08-26 (copilot execute routing / chrome)
+
+### Changed
+
+- Copilot **Ejecutar** no longer draws Plotly in the chat bubble. A figure switches to EDA (or ML if that tab is active), paints `#eda-plot` / `#ml-plot`, and leaves a short note plus an info toast.
+- `display_df` tables stay in the chat result block; they no longer overwrite `#clean-table`. Dataset previews still refresh when execute mutates `df`.
+- Copilot header shows `settings.gemini_model` instead of the specialist label; the MULTIAGENTE eyebrow is gone.
+- Splitter hit area is unchanged; the vertical pill that looked like a scrollbar is removed.
+
+### Added
+
+- **Copiar** on copiloto code blocks (clipboard, brief “Copiado” label).
+- Button loading: `.is-busy` spinner while async tools/chat run; `.is-ok` check (~700ms) on success. Copy uses the “Copiado” label instead of a spinner.
+
+### Fixed
+
+- EDA metrics, descriptive stats, and quality stayed empty after a dataset load: the report only ran on the tab click. `applyPreview` now calls `loadEda()`. Static assets use `?v=` so HTML/JS/CSS stay in sync.
+
 ## 2026-08-25 (fe-cols / toasts)
 
 ### Fixed

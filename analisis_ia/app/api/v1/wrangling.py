@@ -11,6 +11,14 @@ from app.services.wrangling import apply_wrangling
 router = APIRouter(prefix="/wrangling", tags=["wrangling"])
 
 
+def _preview_payload(session) -> dict:
+    return {
+        "preview": df_preview(session.df, settings.preview_rows) if session.df is not None else None,
+        "undo_depth": len(session.history),
+        "columns": list(session.df.columns) if session.df is not None else [],
+    }
+
+
 @router.post("/apply")
 async def apply_op(request: Request, body: WranglingRequest) -> dict:
     session = store.require_df(current_session(request))
@@ -26,23 +34,21 @@ async def apply_op(request: Request, body: WranglingRequest) -> dict:
         decimals=body.decimals,
     )
     store.push_and_set(session, new_df)
-    return {
-        "preview": df_preview(session.df, settings.preview_rows),
-        "undo_depth": len(session.history),
-        "columns": list(session.df.columns),
-    }
+    return _preview_payload(session)
 
 
 @router.post("/undo")
 async def undo(request: Request) -> dict:
     session = store.require_df(current_session(request))
     ok = store.undo(session)
-    return {
-        "undone": ok,
-        "preview": df_preview(session.df, settings.preview_rows) if session.df is not None else None,
-        "undo_depth": len(session.history),
-        "columns": list(session.df.columns) if session.df is not None else [],
-    }
+    return {"undone": ok, **_preview_payload(session)}
+
+
+@router.post("/reset")
+async def reset(request: Request) -> dict:
+    session = store.require_df(current_session(request))
+    ok = store.reset(session)
+    return {"reset": ok, **_preview_payload(session)}
 
 
 @router.get("/export")

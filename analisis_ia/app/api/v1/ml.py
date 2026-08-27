@@ -1,10 +1,15 @@
+import logging
+
 from fastapi import APIRouter, Request
 
 from app.api.deps import current_session
+from app.core.exceptions import AppError
 from app.infra.session_store import store
 from app.schemas.payloads import SupervisedRequest, UnsupervisedRequest
 from app.services.dataframe_ops import numeric_columns
 from app.services.ml import CLASSIFIERS, REGRESSORS, suggested_task, train_supervised, unsupervised, XGBOOST_AVAILABLE
+
+logger = logging.getLogger("analisis_ia")
 
 router = APIRouter(prefix="/ml", tags=["ml"])
 
@@ -26,21 +31,33 @@ async def options(request: Request) -> dict:
 @router.post("/supervised")
 async def supervised(request: Request, body: SupervisedRequest) -> dict:
     session = store.require_df(current_session(request))
-    return train_supervised(
-        session.df, body.target, body.features, body.task_type, body.algorithm, body.test_size,
-    )
+    try:
+        return train_supervised(
+            session.df, body.target, body.features, body.task_type, body.algorithm, body.test_size,
+        )
+    except AppError:
+        raise
+    except Exception:
+        logger.exception("Supervised training failed")
+        raise AppError("Error al entrenar el modelo", 500) from None
 
 
 @router.post("/unsupervised")
 async def unsup(request: Request, body: UnsupervisedRequest) -> dict:
     session = store.require_df(current_session(request))
-    return unsupervised(
-        session.df,
-        body.features,
-        body.method,
-        max_k=body.max_k,
-        k=body.k,
-        eps=body.eps,
-        min_samples=body.min_samples,
-        n_components=body.n_components,
-    )
+    try:
+        return unsupervised(
+            session.df,
+            body.features,
+            body.method,
+            max_k=body.max_k,
+            k=body.k,
+            eps=body.eps,
+            min_samples=body.min_samples,
+            n_components=body.n_components,
+        )
+    except AppError:
+        raise
+    except Exception:
+        logger.exception("Unsupervised analysis failed")
+        raise AppError("Error al entrenar el modelo", 500) from None
