@@ -20,7 +20,8 @@ analisis_ia/
     ├── schemas/             Pydantic payloads
     ├── domain/              AnalysisSession, ExecutionResult
     ├── services/            ingestion, eda, wrangling, ml, copilot
-    │   └── copilot/agents/  Product specialists (cleaning, eda, ml)
+    │   └── copilot/         orchestrator, Gemini client, agent loop + tools
+    │       └── agents/      Product specialists (cleaning, eda, ml) — assist prompts
     ├── sandbox/             AST validate + timed exec
     ├── infra/               In-memory SessionStore; Supabase stub
     ├── templates/           index.html (module tabs + inner subtabs + right chat)
@@ -39,16 +40,16 @@ analisis_ia/
 
 ## Product agents (in-app)
 
-Right complementary chat. Active tab biases routing; the orchestrator can still hand off.
+Right complementary chat. Toggle **Asistente | Agente**.
 
-| Agent | Responsibility |
-|-------|----------------|
-| Orchestrator | `route_specialist` + Gemini call |
-| Cleaning | Nulls, dups, type cast, scale, encode, rename/drop |
-| EDA | Metrics, quality, charts |
-| ML | Supervised / unsupervised |
+| Mode | Behavior |
+|------|----------|
+| Asistente (default) | Keyword `route_specialist` + one Gemini call. User runs code via **Ejecutar** (`POST /api/v1/chat/execute`). |
+| Agente | Function calling loop (`inspect_dataset`, `run_python` read-only, `propose_mutations`). Streamed steps; mutations only after **Aplicar** (`POST /api/v1/chat/apply`). Vague prompts → quality audit + ML recs. |
 
-Chat is two-step: generate code, then **Ejecutar** hits `/api/v1/chat/execute` (sandbox).
+Assist specialists (prompt only): cleaning, EDA, ML. Orchestrator still routes by keywords + active tab.
+
+`exec()` remains only in `app/sandbox/`. Agent `run_python` uses that sandbox and never writes `session.df` until the user confirms a wrangling op.
 
 ## Cursor subagents
 

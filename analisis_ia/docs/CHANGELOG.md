@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-08-28 (agent mode, in-place edit, chat errors)
+
+### Added
+
+- Copiloto **Agente** mode: Gemini chooses tools (`inspect_dataset`, `run_python` read-only, `propose_mutations`) in a bounded loop. `POST /api/v1/chat/agent` streams NDJSON steps; **Aplicar** on proposed mutations hits `POST /api/v1/chat/apply`. Assist mode remains the default.
+- Live step trail in the chat (revisando nulos, duplicados, outliers, graficando, proponiendo limpieza, etc.).
+- **Copiar** on a user bubble after the assistant has answered.
+
+### Changed
+
+- **Editar** opens an in-bubble editor and overwrites that user message (`replace_last`); it no longer pastes into the composer. Stopping a reply no longer copies the prompt back into the input.
+- Gemini failures map to “Se acabaron los tokens” (quota / 429 / RESOURCE_EXHAUSTED) or “Error al generar respuesta”. Static assets `?v=` bumped to `0.1.3`.
+
+### Fixed
+
+- Chat error UI no longer always showed “La IA no responde”, ignoring the API `detail`.
+
 ## 2026-08-26 (chat stop/edit, safe errors, undo-all)
 
 ### Fixed

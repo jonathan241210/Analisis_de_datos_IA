@@ -2,7 +2,7 @@
 
 ## Current slice
 
-Slice 7 complete — np.select sandbox compat, one retry per bubble, green copy/ok, chat stop/edit, user-safe errors (logs in terminal), undo-all + tooltips above.
+Slice 8 complete — Copiloto **Agente** mode (Gemini tools + bounded loop + live step trail; mutations need confirm), in-place **Editar** / **Copiar** on user bubbles, token vs generic chat errors.
 
 ## Completed
 
@@ -51,11 +51,15 @@ Slice 7 complete — np.select sandbox compat, one retry per bubble, green copy/
 - Limpieza: undo last vs reset all; tooltips above the buttons; dropzone has no duplicate tip.
 - Pytest: 20 passed (`analisis_ia/tests`).
 
+### Slice 8
+
+- Copiloto toggle **Asistente | Agente**. Assist stays one-shot + manual Ejecutar. Agent mode: Gemini function calling in a bounded loop (`inspect_dataset`, `run_python` read-only, `propose_mutations`). Vague prompts default to a quality audit plus ML recommendations. Mutations apply only after the user confirms (`POST /api/v1/chat/apply`). NDJSON stream paints a live step trail (nulos, duplicados, outliers, graficando, etc.).
+- **Editar** overwrites the sent user bubble in place when the reply was stopped (no copy-into-composer). After the model answers, that user bubble shows **Copiar** instead of Editar. Abort no longer refills the composer.
+- Chat errors: quota/token exhaustion → “Se acabaron los tokens”; any other Gemini failure → “Error al generar respuesta”. Raw API text stays in the server log.
+- Pytest: 32 passed (`analisis_ia/tests`).
+
 ## Next (product)
 
-- **Agent mode (tools + loop):** optional Copiloto mode, not a one-shot LLM and not a fixed pipeline. Gemini chooses tools (`inspect_dataset`, `run_python` read-only, wrangling ops) in a bounded loop: act, observe stdout/preview/error, decide the next step. Vague prompts default to a full quality audit (nulls, duplicates, outliers, types) plus ML recommendations (useful columns, task type). Mutations (impute, drop, encode, drop duplicates) only after explicit user confirm. The chat shows a brief live step trail (e.g. “Revisando nulos…”, “Buscando outliers…”, “Graficando…”) so the user sees what the agent is doing. Assist mode stays the default (one-shot chat + manual Ejecutar).
-- **Chat edit/copy UX:** Editar must overwrite the sent user bubble in place when the user stopped the reply (no copy-into-composer). If the model already answered, hide Editar and show Copiar on that user message.
-- **Chat error copy:** quota/token exhaustion → explicit Spanish line that tokens ran out; any other Gemini failure → “Error al generar respuesta”. Do not leak raw API text.
 - Supabase Auth, Postgres, Storage (replace in-memory sessions).
 - Persist trained models; richer ML (CV, predict on new rows).
 - Stronger sandbox isolation (process/container) if untrusted users.

@@ -33,6 +33,17 @@ class UnsupervisedRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     tab: str = "eda"
+    replace_last: bool = False
+
+
+class AgentApplyRequest(BaseModel):
+    op: str
+    columns: list[str] = Field(default_factory=list)
+    strategy: str | None = None
+    value: str | None = None
+    target_type: str | None = None
+    method: str | None = None
+    new_name: str | None = None
 
 
 class ExecuteRequest(BaseModel):

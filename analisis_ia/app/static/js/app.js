@@ -5,6 +5,7 @@ const PICKER_IDS = [
 ];
 const CHAT_W_KEY = "analisis_ia.chatWidth";
 const CHAT_H_KEY = "analisis_ia.chatHeight";
+const CHAT_MODE_KEY = "analisis_ia.chatMode";
 const CHAT_MIN_W = 280;
 const CHAT_MAX_RATIO = 0.55;
 
@@ -14,7 +15,8 @@ let regressors = [];
 let ingestMeta = null;
 let toastTimer = 0;
 const UI_ERR = {
-  chat: "La IA no responde",
+  chat: "Error al generar respuesta",
+  tokens: "Se acabaron los tokens",
   execute: "No se pudo ejecutar el código",
   plot: "Error al generar el gráfico",
   ml: "Error al entrenar el modelo",
@@ -26,7 +28,7 @@ const UI_ERR = {
 };
 
 let chatAbort = null;
-let editingBubble = null;
+let chatMode = "assist";
 
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -84,6 +86,12 @@ async function withBusy(btn, fn, busyLabel) {
 
 function isAbortError(err) {
   return Boolean(err && (err.name === "AbortError" || err.message === "The user aborted a request."));
+}
+
+function chatErrorMessage(err) {
+  const msg = String((err && err.message) || "").trim();
+  if (msg === UI_ERR.tokens || msg === UI_ERR.chat) return msg;
+  return UI_ERR.chat;
 }
 
 function isChatStacked() {
@@ -902,26 +910,114 @@ function setUserBubbleText(div, content) {
     body.className = "bubble-text";
     div.prepend(body);
   }
+  body.hidden = false;
   body.innerHTML = esc(content).replace(/\n/g, "<br>");
   div.dataset.message = content;
 }
 
-function addEditButton(div, content) {
-  div.dataset.message = content;
-  if (div.querySelector(".bubble-edit")) return;
+function userHasAssistantReply(userBubble) {
+  const sib = userBubble.nextElementSibling;
+  return Boolean(sib && sib.classList.contains("assistant") && !sib.classList.contains("is-thinking"));
+}
+
+function cancelInlineEdit(div) {
+  const editor = div.querySelector(".bubble-editor");
+  if (editor) editor.remove();
+  const body = div.querySelector(".bubble-text");
+  if (body) body.hidden = false;
+}
+
+function startInlineEdit(div) {
+  if (div.querySelector(".bubble-editor")) return;
+  cancelInlineEdit(div);
+  const body = div.querySelector(".bubble-text");
+  if (body) body.hidden = true;
+  const actions = div.querySelector(".bubble-user-actions");
+  if (actions) actions.hidden = true;
+  const editor = document.createElement("div");
+  editor.className = "bubble-editor";
+  const ta = document.createElement("textarea");
+  ta.value = div.dataset.message || "";
+  ta.setAttribute("aria-label", "Editar mensaje");
+  const row = document.createElement("div");
+  row.className = "bubble-editor-actions";
+  const save = document.createElement("button");
+  save.type = "button";
+  save.textContent = "Guardar";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "ghost";
+  cancel.textContent = "Cancelar";
+  save.addEventListener("click", async () => {
+    const next = ta.value.trim();
+    if (!next) return;
+    editor.remove();
+    if (body) body.hidden = false;
+    setUserBubbleText(div, next);
+    removeFollowingAssistants(div);
+    refreshUserActions(div);
+    await requestChat(next, { echoUser: false, replaceLast: true });
+  });
+  cancel.addEventListener("click", () => {
+    editor.remove();
+    if (body) body.hidden = false;
+    refreshUserActions(div);
+  });
+  row.appendChild(save);
+  row.appendChild(cancel);
+  editor.appendChild(ta);
+  editor.appendChild(row);
+  div.appendChild(editor);
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+function refreshUserActions(div) {
+  if (!div || !div.classList.contains("user")) return;
+  cancelInlineEdit(div);
+  let wrap = div.querySelector(".bubble-user-actions");
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.className = "bubble-user-actions";
+    div.appendChild(wrap);
+  }
+  wrap.hidden = false;
+  wrap.innerHTML = "";
+  const answered = userHasAssistantReply(div);
+  if (answered) {
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "bubble-copy";
+    copy.textContent = "Copiar";
+    copy.setAttribute("aria-label", "Copiar mensaje");
+    copy.addEventListener("click", async () => {
+      try {
+        await copyText(div.dataset.message || "");
+        if (!copy.dataset.label) copy.dataset.label = "Copiar";
+        copy.dataset.okLabel = "Copiado";
+        await markButtonOk(copy, 1500);
+      } catch (_) {
+        toast(UI_ERR.copy, "error");
+      }
+    });
+    wrap.appendChild(copy);
+    return;
+  }
   const edit = document.createElement("button");
   edit.type = "button";
   edit.className = "bubble-edit";
   edit.textContent = "Editar";
   edit.setAttribute("aria-label", "Editar mensaje");
-  edit.addEventListener("click", () => {
-    const ta = document.getElementById("chat-input");
-    ta.value = div.dataset.message || "";
-    editingBubble = div;
-    autosizeComposer();
-    ta.focus();
-  });
-  div.appendChild(edit);
+  edit.addEventListener("click", () => startInlineEdit(div));
+  wrap.appendChild(edit);
+}
+
+function syncLastUserActions() {
+  const log = document.getElementById("chat-log");
+  if (!log) return;
+  const users = [...log.querySelectorAll(".bubble.user")];
+  const last = users[users.length - 1];
+  if (last) refreshUserActions(last);
 }
 
 function removeFollowingAssistants(userBubble) {
@@ -957,7 +1053,10 @@ function appendChat(role, content, codeBlocks = []) {
   body.className = "bubble-text";
   body.innerHTML = esc(assistantPlain(content)).replace(/\n/g, "<br>");
   div.appendChild(body);
-  if (role === "user") addEditButton(div, content);
+  if (role === "user") {
+    div.dataset.message = content;
+    refreshUserActions(div);
+  }
   codeBlocks.forEach((code) => appendCodeBlock(div, code));
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
@@ -1094,57 +1193,224 @@ function autosizeComposer() {
 }
 
 let lastChatMessage = "";
+let lastReplaceLast = false;
 
-async function requestAssistant(message, { echoUser = true } = {}) {
-  const form = document.getElementById("chat-form");
-  if (!message || form.dataset.busy === "1") return;
-  lastChatMessage = message;
-  if (editingBubble && echoUser) {
-    setUserBubbleText(editingBubble, message);
-    removeFollowingAssistants(editingBubble);
-    editingBubble = null;
-    echoUser = false;
-  } else if (echoUser) {
-    appendChat("user", message);
+function showAgentTrail() {
+  const log = document.getElementById("chat-log");
+  const div = document.createElement("div");
+  div.className = "bubble assistant agent-run";
+  const trail = document.createElement("ol");
+  trail.className = "agent-trail";
+  const body = document.createElement("div");
+  body.className = "bubble-text";
+  div.appendChild(trail);
+  div.appendChild(body);
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return { div, trail, body };
+}
+
+function upsertAgentStep(trail, ev) {
+  if (!trail || !ev || !ev.id) return;
+  let li = trail.querySelector(`[data-step-id="${ev.id}"]`);
+  if (!li) {
+    li = document.createElement("li");
+    li.dataset.stepId = ev.id;
+    trail.appendChild(li);
   }
-  form.dataset.busy = "1";
-  setSendMode("stop");
+  if (ev.label) li.textContent = ev.label;
+  li.classList.remove("is-running", "is-done", "is-error");
+  li.classList.add(ev.status === "error" ? "is-error" : (ev.status === "done" ? "is-done" : "is-running"));
+}
+
+function renderProposedActions(parent, actions) {
+  if (!actions || !actions.length) return;
+  let wrap = parent.querySelector(".agent-proposals");
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.className = "agent-proposals";
+    parent.appendChild(wrap);
+  }
+  wrap.innerHTML = "";
+  actions.forEach((action) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = action.label || `Aplicar ${action.op}`;
+    btn.addEventListener("click", () => applyAgentAction(action, btn));
+    wrap.appendChild(btn);
+  });
+}
+
+async function applyAgentAction(action, btn) {
+  try {
+    await withBusy(btn, async () => {
+      const data = await api("/api/v1/chat/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(action),
+      });
+      if (data.preview) applyPreview(data.preview);
+      toast(data.mutated ? "Cambio aplicado" : "Sin cambios en el dataset", data.mutated ? "ok" : "info");
+    }, "Aplicando…");
+  } catch (_) {
+    toast(UI_ERR.wrangle, "error");
+  }
+}
+
+async function readNdjson(res, onEvent) {
+  const reader = res.body && res.body.getReader();
+  if (!reader) {
+    const text = await res.text();
+    text.split("\n").filter(Boolean).forEach((line) => onEvent(JSON.parse(line)));
+    return;
+  }
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      onEvent(JSON.parse(line));
+    }
+  }
+  if (buf.trim()) onEvent(JSON.parse(buf));
+}
+
+async function requestAgent(message, { replaceLast = false } = {}) {
+  const run = showAgentTrail();
+  try {
+    const res = await fetch("/api/v1/chat/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        tab: TAB_TO_AGENT[activeTab],
+        replace_last: replaceLast,
+      }),
+      signal: chatAbort.signal,
+    });
+    if (!res.ok) {
+      let detail = UI_ERR.chat;
+      try {
+        const body = await res.json();
+        detail = body.detail || detail;
+      } catch (_) { /* ignore */ }
+      throw new Error(chatErrorMessage({ message: detail }));
+    }
+    let finalEv = null;
+    await readNdjson(res, (ev) => {
+      if (ev.type === "step") upsertAgentStep(run.trail, ev);
+      else if (ev.type === "fig" && ev.fig) showCopilotFigure(ev.fig);
+      else if (ev.type === "display" && ev.display) {
+        let box = run.div.querySelector(".exec-result");
+        if (!box) {
+          box = document.createElement("div");
+          box.className = "exec-result";
+          run.body.after(box);
+        }
+        renderExecResult(box, { display: ev.display });
+      } else if (ev.type === "error") {
+        throw new Error(chatErrorMessage({ message: ev.detail }));
+      } else if (ev.type === "final") {
+        finalEv = ev;
+      }
+    });
+    if (!finalEv) throw new Error(UI_ERR.chat);
+    await typeText(run.body, finalEv.content || "");
+    (finalEv.code_blocks || []).forEach((code) => appendCodeBlock(run.div, code));
+    renderProposedActions(run.div, finalEv.proposed_actions || []);
+    addRetryButton(run.div, async () => {
+      run.div.remove();
+      await requestChat(lastChatMessage, { echoUser: false, replaceLast: lastReplaceLast });
+    });
+    const log = document.getElementById("chat-log");
+    log.scrollTop = log.scrollHeight;
+    return run.div;
+  } catch (err) {
+    if (run.div.isConnected) run.div.remove();
+    throw err;
+  }
+}
+
+async function requestAssistant(message, { replaceLast = false } = {}) {
   const thinking = showThinking();
-  chatAbort = new AbortController();
   try {
     const data = await api("/api/v1/chat/message", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, tab: TAB_TO_AGENT[activeTab] }),
+      body: JSON.stringify({
+        message,
+        tab: TAB_TO_AGENT[activeTab],
+        replace_last: replaceLast,
+      }),
       signal: chatAbort.signal,
     });
     thinking.remove();
     const bubble = await appendAssistant(data.content, data.code_blocks || []);
     addRetryButton(bubble, async () => {
       bubble.remove();
-      await requestAssistant(lastChatMessage, { echoUser: false });
+      await requestChat(lastChatMessage, { echoUser: false, replaceLast: lastReplaceLast });
     });
+    return bubble;
   } catch (err) {
     if (thinking.isConnected) thinking.remove();
+    throw err;
+  }
+}
+
+async function requestChat(message, { echoUser = true, replaceLast = false } = {}) {
+  const form = document.getElementById("chat-form");
+  if (!message || form.dataset.busy === "1") return;
+  lastChatMessage = message;
+  lastReplaceLast = replaceLast;
+  if (echoUser) appendChat("user", message);
+  form.dataset.busy = "1";
+  setSendMode("stop");
+  chatAbort = new AbortController();
+  try {
+    if (chatMode === "agent") {
+      await requestAgent(message, { replaceLast });
+    } else {
+      await requestAssistant(message, { replaceLast });
+    }
+    syncLastUserActions();
+  } catch (err) {
     if (isAbortError(err)) {
       toast(UI_ERR.abort, "info");
-      const ta = document.getElementById("chat-input");
-      if (ta && !ta.value.trim()) {
-        ta.value = lastChatMessage;
-        autosizeComposer();
-      }
+      syncLastUserActions();
       return;
     }
-    const div = appendChat("assistant", UI_ERR.chat);
+    const div = appendChat("assistant", chatErrorMessage(err));
     div.classList.add("is-error");
     addRetryButton(div, async () => {
       div.remove();
-      await requestAssistant(lastChatMessage, { echoUser: false });
+      await requestChat(lastChatMessage, { echoUser: false, replaceLast: lastReplaceLast });
     });
+    syncLastUserActions();
   } finally {
     chatAbort = null;
     form.dataset.busy = "0";
     setSendMode("send");
+  }
+}
+
+function setChatMode(mode) {
+  chatMode = mode === "agent" ? "agent" : "assist";
+  localStorage.setItem(CHAT_MODE_KEY, chatMode);
+  document.querySelectorAll("#chat-mode [data-chat-mode]").forEach((btn) => {
+    const on = btn.dataset.chatMode === chatMode;
+    btn.classList.toggle("is-active", on);
+    btn.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const hint = document.getElementById("chat-mode-hint");
+  if (hint) {
+    hint.textContent = chatMode === "agent"
+      ? "El agente usa herramientas y muestra los pasos. Los cambios al dataset piden confirmación."
+      : "Las tablas de Ejecutar aparecen en el chat. Las gráficas se abren en Visualización (EDA o ML).";
   }
 }
 
@@ -1160,8 +1426,13 @@ document.getElementById("chat-form").addEventListener("submit", async (ev) => {
   if (!message) return;
   input.value = "";
   autosizeComposer();
-  await requestAssistant(message);
+  await requestChat(message);
 });
+
+document.querySelectorAll("#chat-mode [data-chat-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => setChatMode(btn.dataset.chatMode));
+});
+setChatMode(localStorage.getItem(CHAT_MODE_KEY) === "agent" ? "agent" : "assist");
 
 function clampChatWidth(px, workspace) {
   const maxW = Math.round(workspace.clientWidth * CHAT_MAX_RATIO);

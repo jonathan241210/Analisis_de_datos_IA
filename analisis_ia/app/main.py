@@ -15,7 +15,7 @@ logging.getLogger("analisis_ia").setLevel(logging.INFO)
 
 APP_DIR = Path(__file__).resolve().parent
 
-app = FastAPI(title="analisis_ia", version="0.1.2")
+app = FastAPI(title="analisis_ia", version="0.1.3")
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 

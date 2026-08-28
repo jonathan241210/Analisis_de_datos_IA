@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     undo_limit: int = 15
     sandbox_timeout_s: float = 30.0
     preview_rows: int = 20
+    agent_max_steps: int = 8
 
 
 settings = Settings()

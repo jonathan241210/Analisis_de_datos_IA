@@ -295,7 +295,11 @@
         <header>
           <h2>Copiloto</h2>
           <p id="chat-model" class="muted" aria-live="polite">{{ gemini_model }}</p>
-          <p class="hint">Las tablas de Ejecutar aparecen en el chat. Las gráficas se abren en Visualización (EDA o ML).</p>
+          <div class="subtabs chat-mode" id="chat-mode" role="tablist" aria-label="Modo del copiloto">
+            <button type="button" class="subtab is-active" role="tab" data-chat-mode="assist" aria-selected="true">Asistente</button>
+            <button type="button" class="subtab" role="tab" data-chat-mode="agent" aria-selected="false">Agente</button>
+          </div>
+          <p class="hint" id="chat-mode-hint">Las tablas de Ejecutar aparecen en el chat. Las gráficas se abren en Visualización (EDA o ML).</p>
         </header>
         <div id="chat-log" class="chat-log"></div>
         <form id="chat-form" class="composer">

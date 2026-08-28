@@ -24,6 +24,9 @@ def test_health_and_home():
     assert 'id="btn-undo-all"' in page.text
     assert "Deshacer último cambio" in page.text
     assert 'data-tip="Formatos' not in page.text
+    assert 'id="chat-mode"' in page.text
+    assert "Asistente" in page.text
+    assert ">Agente<" in page.text or "data-chat-mode=\"agent\"" in page.text
 
 
 def test_upload_and_cast():
@@ -98,3 +101,75 @@ def test_eda_report_after_upload():
     assert body["quality"]["columns"]
     assert "a" in body["numeric_columns"]
     assert "b" in body["categorical_columns"]
+
+
+def test_chat_replace_last(monkeypatch):
+    async def fake_reply(*_a, **_k):
+        return "respuesta de prueba"
+
+    monkeypatch.setattr("app.services.copilot.orchestrator.generate_reply", fake_reply)
+    files = {"file": ("demo.csv", b"nota\n1\n2\n", "text/csv")}
+    assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
+    first = client.post("/api/v1/chat/message", json={"message": "hola", "tab": "eda"})
+    assert first.status_code == 200
+    hist = client.get("/api/v1/chat/history").json()["history"]
+    assert hist[-2]["content"] == "hola"
+    second = client.post(
+        "/api/v1/chat/message",
+        json={"message": "hola editado", "tab": "eda", "replace_last": True},
+    )
+    assert second.status_code == 200
+    hist = client.get("/api/v1/chat/history").json()["history"]
+    user_msgs = [m["content"] for m in hist if m["role"] == "user"]
+    assert user_msgs == ["hola editado"]
+
+
+def test_chat_apply_drop_duplicates():
+    files = {"file": ("demo.csv", b"a,b\n1,2\n1,2\n3,4\n", "text/csv")}
+    assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
+    applied = client.post(
+        "/api/v1/chat/apply",
+        json={"op": "drop_duplicates", "label": "Quitar duplicados"},
+    )
+    assert applied.status_code == 200
+    body = applied.json()
+    assert body["success"] is True
+    assert body["mutated"] is True
+    assert body["preview"]["shape"][0] == 2
+
+
+def test_agent_stream_scripted(monkeypatch):
+    from app.services.copilot.gemini_client import ModelTurn
+
+    n = {"i": 0}
+
+    async def fake_tools(_system, _contents):
+        n["i"] += 1
+        if n["i"] == 1:
+            return ModelTurn(calls=[{"name": "inspect_dataset", "args": {"focus": "duplicates"}}])
+        return ModelTurn(text="Hay duplicados. Quita filas repetidas antes de entrenar.")
+
+    monkeypatch.setattr("app.services.copilot.agent_loop.generate_with_tools", fake_tools)
+    files = {"file": ("demo.csv", b"a,b\n1,2\n1,2\n", "text/csv")}
+    assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
+    with client.stream("POST", "/api/v1/chat/agent", json={"message": "analiza", "tab": "eda"}) as res:
+        assert res.status_code == 200
+        raw = b"".join(res.iter_bytes()).decode("utf-8")
+    assert "duplicad" in raw.lower()
+    assert '"type": "final"' in raw or '"type":"final"' in raw
+    assert "Hay duplicados" in raw
+
+
+def test_chat_token_error(monkeypatch):
+    from app.services.copilot.errors import MSG_TOKENS
+    from app.services.copilot.gemini_client import GeminiUnavailable
+
+    async def boom(*_a, **_k):
+        raise GeminiUnavailable(MSG_TOKENS)
+
+    monkeypatch.setattr("app.services.copilot.orchestrator.generate_reply", boom)
+    files = {"file": ("demo.csv", b"nota\n1\n", "text/csv")}
+    assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
+    res = client.post("/api/v1/chat/message", json={"message": "hola", "tab": "eda"})
+    assert res.status_code == 503
+    assert res.json()["detail"] == MSG_TOKENS
