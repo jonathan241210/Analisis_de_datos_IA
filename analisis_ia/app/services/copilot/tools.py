@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 import pandas as pd
@@ -95,24 +96,48 @@ TOOL_SPECS: list[dict[str, Any]] = [
 
 def json_safe(obj: Any, limit: int = 8000) -> Any:
     def conv(value: Any) -> Any:
-        if value is None or isinstance(value, (bool, str, int, float)):
+        if value is None or isinstance(value, bool):
             return value
+        if isinstance(value, str):
+            return value
+        if isinstance(value, int):
+            return int(value)
+        if isinstance(value, float):
+            if math.isnan(value) or math.isinf(value):
+                return None
+            return value
+        if isinstance(value, dict):
+            return {str(k): conv(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [conv(v) for v in value]
+        try:
+            if bool(pd.isna(value)):
+                return None
+        except (TypeError, ValueError):
+            pass
         if hasattr(value, "item") and not isinstance(value, (bytes, str)):
             try:
                 return conv(value.item())
             except Exception:
                 return str(value)
-        if isinstance(value, dict):
-            return {str(k): conv(v) for k, v in value.items()}
-        if isinstance(value, (list, tuple)):
-            return [conv(v) for v in value]
         return str(value)
 
     converted = conv(obj)
-    text = json.dumps(converted, ensure_ascii=False, default=str)
+    text = json.dumps(converted, ensure_ascii=False, default=str, allow_nan=False)
     if len(text) <= limit:
         return converted
     return {"truncated": True, "preview": text[:limit]}
+
+
+def _head_records(df: pd.DataFrame, n: int = 2) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    head = df.head(n)
+    for row in head.itertuples(index=False):
+        item: dict[str, Any] = {}
+        for col, val in zip(df.columns, row):
+            item[str(col)] = None if pd.isna(val) else str(val)
+        records.append(item)
+    return records
 
 
 def inspect_dataset(df: pd.DataFrame, focus: str = "all") -> dict[str, Any]:
@@ -127,7 +152,7 @@ def inspect_dataset(df: pd.DataFrame, focus: str = "all") -> dict[str, Any]:
     if key in {"all", "schema"}:
         listed = df.columns.tolist()[: settings.max_columns_in_metadata]
         payload["schema"] = [{"name": str(c), "dtype": str(df[c].dtype)} for c in listed]
-        payload["head"] = df.head(2).astype(str).to_dict(orient="records")
+        payload["head"] = _head_records(df, 2)
     if key in {"all", "nulls"}:
         null_counts = df.isnull().sum()
         n = len(df) or 1
@@ -186,7 +211,7 @@ def run_python_readonly(df: pd.DataFrame, code: str) -> tuple[dict[str, Any], di
     mutated = bool(result.success and result.df is not None and not result.df.equals(df))
     payload: dict[str, Any] = {
         "success": result.success,
-        "error": result.error,
+        "error": result.detail or result.error,
         "stdout": (result.stdout or "")[:4000],
         "mutated_in_sandbox": mutated,
         "applied": False,

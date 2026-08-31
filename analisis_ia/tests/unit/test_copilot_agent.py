@@ -1,10 +1,14 @@
+import json
+import math
+
+import numpy as np
 import pandas as pd
 import pytest
 
 from app.services.copilot.agent_loop import run_agent_loop
 from app.services.copilot.errors import MSG_GENERIC, MSG_TOKENS, classify_gemini_error
-from app.services.copilot.gemini_client import ModelTurn
-from app.services.copilot.tools import inspect_dataset, propose_mutations, run_python_readonly, step_label
+from app.services.copilot.gemini_client import ModelTurn, _generic_to_genai, _import_genai
+from app.services.copilot.tools import inspect_dataset, json_safe, propose_mutations, run_python_readonly, step_label
 from app.services.wrangling import apply_wrangling
 
 
@@ -16,6 +20,54 @@ def test_classify_gemini_tokens():
 def test_classify_gemini_generic():
     assert classify_gemini_error(RuntimeError("connection reset")) == MSG_GENERIC
     assert classify_gemini_error(None, extra="") == MSG_GENERIC
+
+
+def test_function_results_use_user_role_for_gemini():
+    _, types = _import_genai()
+    contents = _generic_to_genai(
+        types,
+        [
+            {"role": "user", "text": "analiza"},
+            {"role": "model", "text": "", "calls": [{"name": "inspect_dataset", "args": {"focus": "nulls"}}]},
+            {"role": "tool", "results": [{"name": "inspect_dataset", "response": {"result": {"nulls": []}}}]},
+        ],
+    )
+    assert contents[-1].role == "user"
+    assert contents[-1].parts[0].function_response.name == "inspect_dataset"
+    assert contents[1].role == "model"
+
+
+def test_json_safe_converts_nan_and_inf_to_none():
+    cleaned = json_safe({
+        "nan": float("nan"),
+        "inf": float("inf"),
+        "ninf": float("-inf"),
+        "numpy_nan": np.nan,
+        "pandas_na": pd.NA,
+        "ok": 1.5,
+        "nested": [{"x": math.nan}],
+    })
+    json.dumps(cleaned, allow_nan=False)
+    assert cleaned["nan"] is None
+    assert cleaned["inf"] is None
+    assert cleaned["ninf"] is None
+    assert cleaned["numpy_nan"] is None
+    assert cleaned["pandas_na"] is None
+    assert cleaned["ok"] == 1.5
+    assert cleaned["nested"][0]["x"] is None
+
+
+def test_inspect_dataset_head_is_strict_json_with_nulls():
+    df = pd.DataFrame({
+        "id": [1001, 1002],
+        "sexo": ["M", "F"],
+        "sexo.1": [np.nan, "F"],
+    })
+    payload = inspect_dataset(df, "schema")
+    raw = json.dumps(payload, allow_nan=False)
+    assert "NaN" not in raw
+    assert payload["head"][0]["sexo.1"] is None
+    assert payload["head"][0]["sexo"] == "M"
 
 
 def test_inspect_nulls_dups_outliers():
@@ -43,6 +95,14 @@ def test_run_python_does_not_mutate_original():
     assert df["nota"].tolist() == [1.0, 2.0]
     assert "10" in (payload.get("stdout") or "") or "30" in (payload.get("stdout") or "")
     assert extra.get("fig") is None
+
+
+def test_run_python_payload_exposes_runtime_error_to_agent():
+    df = pd.DataFrame({"a": [1]})
+    payload, _extra = run_python_readonly(df, "1/0")
+    assert payload["success"] is False
+    assert "ZeroDivisionError" in (payload.get("error") or "")
+    assert "traceback" not in (payload.get("error") or "").lower()
 
 
 def test_propose_mutations_filters_unknown():

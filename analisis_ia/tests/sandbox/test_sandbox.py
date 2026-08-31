@@ -28,11 +28,39 @@ def test_allows_pandas_on_copy():
     assert df["alumno"].iloc[0] == "ana"
 
 
+def test_nested_function_can_use_pd():
+    df = pd.DataFrame({"casado": ["SI", "si", None]})
+    code = """
+def clean_casado(val):
+    if pd.isna(val):
+        return "missing"
+    return str(val).strip().lower()
+
+display_df = df.assign(casado_norm=df["casado"].map(clean_casado))
+"""
+    result = run_generated_code(code, df)
+    assert result.success, result.detail or result.error
+    assert result.display_df is not None
+    assert result.display_df["casado_norm"].tolist() == ["si", "si", "missing"]
+
+
+def test_runtime_error_keeps_generic_for_ui_and_detail_for_agent():
+    df = pd.DataFrame({"a": [1]})
+    result = run_generated_code("1/0", df)
+    assert result.success is False
+    assert result.error == "No se pudo ejecutar el código."
+    assert result.detail is not None
+    assert "ZeroDivisionError" in result.detail
+    assert "traceback" not in result.detail.lower()
+    assert "executor.py" not in result.detail
+
+
 def test_exec_only_after_validation_blocks_subprocess():
     df = pd.DataFrame({"a": [1]})
     result = run_generated_code("import subprocess", df)
     assert result.success is False
     assert result.error == "No se pudo ejecutar el código."
+    assert result.detail is None
     assert "traceback" not in (result.error or "").lower()
     assert "subprocess" not in (result.error or "").lower()
 

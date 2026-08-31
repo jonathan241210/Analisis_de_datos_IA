@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-30 (agent JSON payloads)
+
+### Fixed
+
+- `json_safe` now maps `NaN` / `Inf` / pandas NA to `null` and dumps with `allow_nan=False`, so Gemini no longer rejects tool results (`400 INVALID_ARGUMENT`) on datasets with missing values.
+- `inspect_dataset` head rows use the same null-safe records instead of `astype(str).to_dict()`, which left literal `NaN` on duplicate columns such as `sexo.1`.
+- Function-call results are sent back to Gemini with role `user` (not `tool`). Gemini 3.x rejects `role=tool` with `400 INVALID_ARGUMENT`.
+- Sandbox nested functions can use `pd`/`df` (single `exec` namespace). Agent tool payloads include a short runtime error (`TypeError: …`); the Execute API and AST rejects stay generic.
+
 ## 2026-08-28 (agent mode, in-place edit, chat errors)
 
 ### Added

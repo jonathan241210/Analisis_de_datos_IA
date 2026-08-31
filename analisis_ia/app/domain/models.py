@@ -11,6 +11,7 @@ class ExecutionResult:
     fig: dict | None = None
     stdout: str = ""
     error: str | None = None
+    detail: str | None = None
 
 
 @dataclass

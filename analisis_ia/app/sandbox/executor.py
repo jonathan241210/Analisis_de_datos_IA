@@ -32,6 +32,14 @@ logger = logging.getLogger("analisis_ia")
 
 UI_EXECUTE_ERROR = "No se pudo ejecutar el código."
 UI_TIMEOUT_ERROR = "La ejecución superó el tiempo máximo."
+_DETAIL_LIMIT = 400
+
+
+def _agent_detail(exc: BaseException) -> str:
+    msg = " ".join(str(exc).split())
+    name = type(exc).__name__
+    text = f"{name}: {msg}" if msg else name
+    return text[:_DETAIL_LIMIT]
 
 
 def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
@@ -81,29 +89,38 @@ def _run(code: str, df: pd.DataFrame) -> ExecutionResult:
         "print": print, "isinstance": isinstance, "type": type, "Exception": Exception,
         "__import__": _safe_import,
     }
-    local_ns = {
+    ns: dict[str, object] = {
+        "__builtins__": safe_builtins,
         "df": df.copy(),
-        "pd": pd, "np": _NpSandbox(), "plt": plt, "sns": sns,
-        "px": px, "go": go,
-        "linear_model": linear_model, "ensemble": ensemble, "tree": tree,
-        "cluster": cluster, "decomposition": decomposition,
-        "preprocessing": preprocessing, "model_selection": model_selection,
+        "pd": pd,
+        "np": _NpSandbox(),
+        "plt": plt,
+        "sns": sns,
+        "px": px,
+        "go": go,
+        "linear_model": linear_model,
+        "ensemble": ensemble,
+        "tree": tree,
+        "cluster": cluster,
+        "decomposition": decomposition,
+        "preprocessing": preprocessing,
+        "model_selection": model_selection,
         "metrics": metrics,
         "fig": None,
     }
-    global_ns = {"__builtins__": safe_builtins}
     stdout_buffer = io.StringIO()
     try:
         plt.close("all")
         with contextlib.redirect_stdout(stdout_buffer):
-            exec(code, global_ns, local_ns)  # noqa: S102 — sandbox only, AST-validated
-        result_df = local_ns.get("df")
-        result_fig = local_ns.get("fig")
-        display_df = local_ns.get("display_df")
+            exec(code, ns)  # noqa: S102 — sandbox only, AST-validated
+        result_df = ns.get("df")
+        result_fig = ns.get("fig")
+        display_df = ns.get("display_df")
         if display_df is None:
+            skip = {"df"}
             candidates = [
-                v for k, v in local_ns.items()
-                if k not in {"df"} and not str(k).startswith("_") and isinstance(v, pd.DataFrame)
+                v for k, v in ns.items()
+                if k not in skip and not str(k).startswith("_") and isinstance(v, pd.DataFrame)
             ]
             if candidates:
                 display_df = min(candidates, key=lambda frame: frame.shape[0])
@@ -119,11 +136,12 @@ def _run(code: str, df: pd.DataFrame) -> ExecutionResult:
     except UnsafeCodeError as exc:
         logger.warning("Sandbox rejected code: %s", exc)
         return ExecutionResult(success=False, error=UI_EXECUTE_ERROR, stdout=stdout_buffer.getvalue())
-    except Exception:
+    except Exception as exc:
         logger.exception("Sandbox execution failed")
         return ExecutionResult(
             success=False,
             error=UI_EXECUTE_ERROR,
+            detail=_agent_detail(exc),
             stdout=stdout_buffer.getvalue(),
         )
 

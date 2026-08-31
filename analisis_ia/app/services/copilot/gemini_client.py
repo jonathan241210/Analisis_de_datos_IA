@@ -104,7 +104,8 @@ def _generic_to_genai(types, generic: list[dict[str, Any]]):
                 for row in item.get("results") or []
             ]
             if parts:
-                out.append(types.Content(role="tool", parts=parts))
+                # Gemini 3.x rejects role "tool"; function results are a user turn.
+                out.append(types.Content(role="user", parts=parts))
     return out
 
 
