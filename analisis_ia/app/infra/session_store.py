@@ -16,9 +16,8 @@ class SessionStore:
     def get_or_create(self, session_id: str | None) -> AnalysisSession:
         if session_id and session_id in self._sessions:
             return self._sessions[session_id]
-        new_id = session_id or uuid4().hex
-        session = AnalysisSession(session_id=new_id)
-        self._sessions[new_id] = session
+        session = AnalysisSession(session_id=uuid4().hex)
+        self._sessions[session.session_id] = session
         return session
 
     def require_df(self, session: AnalysisSession) -> AnalysisSession:

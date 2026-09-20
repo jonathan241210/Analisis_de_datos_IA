@@ -19,7 +19,13 @@
 
 ### Tests
 
-- Pytest: 47 passed (`analisis_ia/tests`), including correlation, histogram/boxplot clean errors, LLM settings redaction, assist/agent fallback, and the DB stub.
+- Pytest: 52 passed (`analisis_ia/tests`), including correlation, histogram/boxplot clean errors, LLM settings redaction, assist/agent fallback, and the DB stub.
+
+### Security
+
+- 422 validation errors recursively redact `api_key` / `password` / `user_api_key` even when a sibling field failed.
+- Unknown `analisis_session` cookies are not adopted as session ids.
+- Copiloto “La mía” no longer falls back to the server key if the paste is empty.
 
 ## 2026-09-19 (Slice 9 — agent chat UX)
 

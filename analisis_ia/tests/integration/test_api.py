@@ -321,3 +321,47 @@ def test_llm_settings_validation_redacts_key():
     dumped = str(res.json())
     assert "12345" not in dumped
     assert "[redacted]" in dumped
+
+
+def test_llm_settings_validation_redacts_key_on_sibling_error():
+    res = client.post(
+        "/api/v1/settings/llm",
+        json={"active_id": "gemini", "slots": [{"api_key": "gk-secret-sibling"}]},
+    )
+    assert res.status_code == 422
+    assert "gk-secret-sibling" not in str(res.json())
+
+
+def test_llm_settings_validation_redacts_key_when_active_id_missing():
+    res = client.post(
+        "/api/v1/settings/llm",
+        json={"slots": [{"id": "gemini", "api_key": "gk-secret-body"}]},
+    )
+    assert res.status_code == 422
+    assert "gk-secret-body" not in str(res.json())
+
+
+def test_db_connect_validation_redacts_password():
+    res = client.post(
+        "/api/v1/datasets/db-connect",
+        json={"password": "secret-pass"},
+    )
+    assert res.status_code == 422
+    assert "secret-pass" not in str(res.json())
+
+
+def test_unknown_session_cookie_is_not_adopted():
+    from fastapi.testclient import TestClient
+
+    from app.infra.session_store import store
+    from app.main import app
+
+    attacker = "fixated-session-id"
+    other = TestClient(app)
+    other.cookies.set("analisis_session", attacker)
+    res = other.get("/health")
+    assert res.status_code == 200
+    assert attacker not in store._sessions
+    issued = res.cookies.get("analisis_session")
+    assert issued
+    assert issued != attacker

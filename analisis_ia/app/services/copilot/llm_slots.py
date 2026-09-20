@@ -67,7 +67,7 @@ def resolve_key(slot: dict[str, str]) -> str:
     user = (slot.get("user_api_key") or "").strip()
     builtin = builtin_key(slot["id"])
     if slot.get("key_mode") == "user":
-        return user or builtin
+        return user
     return builtin or user
 
 

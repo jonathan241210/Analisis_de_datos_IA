@@ -39,16 +39,32 @@ async def attach_session(request: Request, call_next):
     return response
 
 
+def _redact_secrets(value):
+    """Replace secret field values anywhere in a validation-error payload."""
+    if isinstance(value, dict):
+        out = {}
+        for key, inner in value.items():
+            if str(key) in _SECRET_FIELDS:
+                out[key] = "[redacted]"
+            else:
+                out[key] = _redact_secrets(inner)
+        return out
+    if isinstance(value, list):
+        return [_redact_secrets(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_secrets(item) for item in value)
+    return value
+
+
 def _redact_validation_error(err: dict) -> dict:
     loc = err.get("loc") or ()
     names = {str(part) for part in loc}
+    scrubbed = _redact_secrets(dict(err))
     if names & _SECRET_FIELDS:
-        scrubbed = dict(err)
         scrubbed["input"] = "[redacted]"
         if "ctx" in scrubbed:
             scrubbed["ctx"] = {}
-        return scrubbed
-    return err
+    return scrubbed
 
 
 @app.exception_handler(AppError)

@@ -22,6 +22,19 @@ def test_classify_gemini_generic():
     assert classify_gemini_error(None, extra="") == MSG_GENERIC
 
 
+def test_user_key_mode_does_not_fall_back_to_builtin(monkeypatch):
+    from app.core import config
+    from app.services.copilot.llm_slots import resolve_key
+
+    monkeypatch.setattr(config.settings, "gemini_api_key", "server-gemini-key")
+    slot = {"id": "gemini", "key_mode": "user", "user_api_key": "", "model": "gemini-2.0-flash"}
+    assert resolve_key(slot) == ""
+    slot["user_api_key"] = "user-gemini-key"
+    assert resolve_key(slot) == "user-gemini-key"
+    builtin = {"id": "gemini", "key_mode": "builtin", "user_api_key": "", "model": "gemini-2.0-flash"}
+    assert resolve_key(builtin) == "server-gemini-key"
+
+
 def test_function_results_use_user_role_for_gemini():
     _, types = _import_genai()
     contents = _generic_to_genai(
