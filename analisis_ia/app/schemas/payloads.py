@@ -48,3 +48,25 @@ class AgentApplyRequest(BaseModel):
 
 class ExecuteRequest(BaseModel):
     code: str
+
+
+class DbConnectRequest(BaseModel):
+    engine: str
+    host: str = ""
+    port: int | None = None
+    database: str = ""
+    username: str = ""
+    password: str = ""
+    path: str = ""
+
+
+class LlmSlotUpdate(BaseModel):
+    id: str
+    model: str = ""
+    key_mode: str = "builtin"
+    api_key: str | None = None
+
+
+class LlmSettingsUpdate(BaseModel):
+    active_id: str
+    slots: list[LlmSlotUpdate] = Field(default_factory=list)

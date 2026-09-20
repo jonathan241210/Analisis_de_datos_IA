@@ -32,9 +32,13 @@ def _blob(exc: BaseException | None, extra: str = "") -> str:
     return " ".join(bits).lower()
 
 
-def classify_gemini_error(exc: BaseException | None = None, extra: str = "") -> str:
-    """Map Gemini/SDK failures to the two user-safe Spanish lines."""
+def classify_llm_error(exc: BaseException | None = None, extra: str = "") -> str:
+    """Map provider/SDK failures to the two user-safe Spanish lines."""
     text = _blob(exc, extra)
     if "429" in text or any(m in text for m in _TOKEN_MARKERS):
         return MSG_TOKENS
     return MSG_GENERIC
+
+
+def classify_gemini_error(exc: BaseException | None = None, extra: str = "") -> str:
+    return classify_llm_error(exc, extra)

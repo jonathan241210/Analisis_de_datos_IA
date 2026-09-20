@@ -21,7 +21,7 @@ const UI_ERR = {
   chat: "Error al generar respuesta",
   tokens: "Se superó el límite de consultas",
   execute: "No se pudo ejecutar el código",
-  plot: "Error al generar el gráfico",
+  plot: "Limpia el dataset primero y vuelve a intentar el gráfico.",
   ml: "Error al entrenar el modelo",
   wrangle: "Error al aplicar la transformación",
   upload: "Error al cargar el archivo",
@@ -316,9 +316,11 @@ function setDupCount(preview) {
 function renderIngestMeta(meta, preview) {
   const metrics = document.getElementById("ingest-meta");
   const tech = document.getElementById("ingest-tech");
+  const wrap = document.getElementById("ingest-tech-wrap");
   if (!preview) {
     metrics.innerHTML = "";
-    tech.innerHTML = "";
+    if (tech) tech.innerHTML = "";
+    if (wrap) wrap.hidden = true;
     return;
   }
   const [rows, cols] = preview.shape || [0, 0];
@@ -331,12 +333,16 @@ function renderIngestMeta(meta, preview) {
   metrics.innerHTML = items
     .map(([k, v]) => `<span class="metric"><small>${esc(k)}</small><b>${esc(v)}</b></span>`)
     .join("");
-  if (meta) {
-    tech.innerHTML = [
-      `Archivo: ${esc(meta.file_name || "—")}`,
-      `Encoding: ${esc(meta.encoding || "—")}`,
-      `Separador: ${esc(meta.separador || "—")}`,
-    ].map((line) => `<p>${line}</p>`).join("");
+  if (meta && tech) {
+    const lines = [
+      ["Archivo", meta.file_name || "—"],
+      ["Encoding", meta.encoding || "—"],
+      ["Separador", meta.separador || "—"],
+    ];
+    tech.innerHTML = lines.map(([k, v]) => (
+      `<div class="tech-item"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`
+    )).join("");
+    if (wrap) wrap.hidden = false;
   }
 }
 
@@ -623,7 +629,7 @@ document.getElementById("btn-hist").addEventListener("click", async (ev) => {
       drawFigure("eda-plot", data.figure);
     }, "Dibujando…");
   } catch (err) {
-    toast(UI_ERR.plot, "error");
+    toast((err && err.message) || UI_ERR.plot, "error");
   }
 });
 
@@ -639,7 +645,7 @@ document.getElementById("btn-box").addEventListener("click", async (ev) => {
       drawFigure("eda-plot", data.figure);
     }, "Dibujando…");
   } catch (err) {
-    toast(UI_ERR.plot, "error");
+    toast((err && err.message) || UI_ERR.plot, "error");
   }
 });
 
@@ -650,7 +656,7 @@ document.getElementById("btn-corr").addEventListener("click", async (ev) => {
       drawFigure("eda-plot", data.figure);
     }, "Dibujando…");
   } catch (err) {
-    toast(UI_ERR.plot, "error");
+    toast((err && err.message) || UI_ERR.plot, "error");
   }
 });
 
@@ -1224,9 +1230,13 @@ function showAgentTrail() {
   activity.appendChild(summary);
   activity.appendChild(panel);
 
+  const artifacts = document.createElement("div");
+  artifacts.className = "agent-artifacts";
+
   const body = document.createElement("div");
   body.className = "bubble-text";
   div.appendChild(activity);
+  div.appendChild(artifacts);
   div.appendChild(body);
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
@@ -1236,6 +1246,7 @@ function showAgentTrail() {
     label: summary.querySelector(".agent-activity-label"),
     panel,
     trail,
+    artifacts,
     body,
     pendingSettle: new Map(),
   };
@@ -1391,8 +1402,9 @@ async function requestAgent(message, { replaceLast = false } = {}) {
         const box = document.createElement("div");
         box.className = "exec-result";
         renderExecResult(box, { display: ev.display });
-        run.panel.appendChild(box);
-        run.activity.open = true;
+        (run.artifacts || run.div).appendChild(box);
+      } else if (ev.type === "fallback") {
+        applyLlmFallback(ev);
       } else if (ev.type === "error") {
         streamError = new Error(chatErrorMessage({ message: ev.detail }));
       } else if (ev.type === "final") {
@@ -1451,6 +1463,7 @@ async function requestAssistant(message, { replaceLast = false } = {}) {
       signal: chatAbort.signal,
     });
     thinking.remove();
+    if (data.fallback) applyLlmFallback(data.fallback);
     const bubble = await appendAssistant(data.content, data.code_blocks || []);
     addRetryButton(bubble, async () => {
       bubble.remove();
@@ -1608,4 +1621,194 @@ bindSplitter();
 applyChatSize();
 autosizeComposer();
 
+function applyLlmFallback(ev) {
+  if (!ev) return;
+  if (llmState) {
+    llmState.active_id = ev.to_id;
+    llmState.active_label = ev.to_label;
+    llmState.active_model = ev.to_model;
+  }
+  paintModelChip(llmState || { active_label: ev.to_label, active_model: ev.to_model });
+  const from = ev.from_label || "el modelo actual";
+  const to = ev.to_label || "el siguiente";
+  toast(`Se superó el cupo de ${from}. Pasé a ${to}.`, "info");
+}
+
+let llmState = null;
+
+function paintModelChip(state) {
+  const el = document.getElementById("chat-model");
+  if (!el || !state) return;
+  const label = state.active_label || "modelo";
+  const model = state.active_model || "";
+  el.textContent = model ? `${label} · ${model}` : label;
+}
+
+function renderLlmSlots(state) {
+  const root = document.getElementById("llm-slots");
+  if (!root || !state) return;
+  root.innerHTML = (state.slots || []).map((slot) => {
+    const builtinOff = slot.has_builtin_key ? "" : "disabled";
+    const modeBuiltin = slot.key_mode === "builtin" && slot.has_builtin_key;
+    const placeholder = slot.has_user_key
+      ? "•••• guardada · pega otra para cambiarla"
+      : "Pega tu clave (no se muestra después)";
+    return `
+      <article class="llm-slot" data-slot-id="${esc(slot.id)}">
+        <div class="llm-slot-head">
+          <label class="llm-slot-pick">
+            <input type="radio" name="llm-active" value="${esc(slot.id)}" ${slot.id === state.active_id ? "checked" : ""} />
+            <span>${esc(slot.label)}</span>
+          </label>
+          <span class="${slot.ready ? "llm-ready" : "llm-missing"}">${slot.ready ? "listo" : "sin clave"}</span>
+        </div>
+        <label>Modelo
+          <input class="llm-model" value="${esc(slot.model)}" spellcheck="false" />
+        </label>
+        <fieldset class="llm-key-mode">
+          <legend>Clave</legend>
+          <label><input type="radio" name="key-${esc(slot.id)}" value="builtin" ${modeBuiltin ? "checked" : ""} ${builtinOff} /> Del servidor</label>
+          <label><input type="radio" name="key-${esc(slot.id)}" value="user" ${modeBuiltin ? "" : "checked"} /> La mía</label>
+        </fieldset>
+        <label>API key
+          <input class="llm-key" type="password" autocomplete="new-password" placeholder="${esc(placeholder)}" />
+        </label>
+      </article>
+    `;
+  }).join("");
+}
+
+function setSettingsOpen(open) {
+  const pop = document.getElementById("llm-settings");
+  const btn = document.getElementById("chat-settings-btn");
+  if (!pop) return;
+  pop.hidden = !open;
+  if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+async function loadLlmSettings() {
+  try {
+    llmState = await api("/api/v1/settings/llm");
+    paintModelChip(llmState);
+    renderLlmSlots(llmState);
+    return llmState;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function saveLlmSettings() {
+  const root = document.getElementById("llm-slots");
+  if (!root) return;
+  const active = root.querySelector("input[name='llm-active']:checked");
+  const slots = [...root.querySelectorAll(".llm-slot")].map((card) => {
+    const id = card.dataset.slotId;
+    const model = card.querySelector(".llm-model")?.value || "";
+    const mode = card.querySelector(`input[name="key-${id}"]:checked`)?.value || "builtin";
+    const typed = card.querySelector(".llm-key")?.value || "";
+    const row = { id, model, key_mode: mode };
+    if (typed) row.api_key = typed;
+    return row;
+  });
+  llmState = await api("/api/v1/settings/llm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ active_id: active ? active.value : "gemini", slots }),
+  });
+  paintModelChip(llmState);
+  renderLlmSlots(llmState);
+  setSettingsOpen(false);
+  toast("Ajustes de modelo guardados", "ok");
+}
+
+function bindLlmSettings() {
+  const openBtn = document.getElementById("chat-settings-btn");
+  const chip = document.getElementById("chat-model");
+  const closeBtn = document.getElementById("llm-settings-close");
+  const saveBtn = document.getElementById("llm-settings-save");
+  const pop = document.getElementById("llm-settings");
+  if (!openBtn || !pop) return;
+  const toggle = async () => {
+    const willOpen = pop.hidden;
+    if (willOpen) await loadLlmSettings();
+    setSettingsOpen(willOpen);
+  };
+  openBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    toggle();
+  });
+  if (chip) {
+    chip.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      toggle();
+    });
+  }
+  closeBtn?.addEventListener("click", () => setSettingsOpen(false));
+  saveBtn?.addEventListener("click", async (ev) => {
+    try {
+      await withBusy(ev.currentTarget, saveLlmSettings, "Guardando…");
+    } catch (err) {
+      toast((err && err.message) || "No se pudieron guardar los ajustes", "error");
+    }
+  });
+  document.addEventListener("click", (ev) => {
+    if (pop.hidden) return;
+    if (pop.contains(ev.target) || openBtn.contains(ev.target) || (chip && chip.contains(ev.target))) return;
+    setSettingsOpen(false);
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !pop.hidden) setSettingsOpen(false);
+  });
+}
+
+function syncDbFields() {
+  const engine = document.getElementById("db-engine");
+  if (!engine) return;
+  const sqlite = engine.value === "sqlite";
+  const toggle = (id, hidden) => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = hidden;
+  };
+  toggle("db-host-wrap", sqlite);
+  toggle("db-port-wrap", sqlite);
+  toggle("db-user-wrap", sqlite);
+  toggle("db-pass-wrap", sqlite);
+  toggle("db-name-wrap", sqlite);
+  toggle("db-path-wrap", !sqlite);
+}
+
+function bindDbConnect() {
+  const engine = document.getElementById("db-engine");
+  const btn = document.getElementById("btn-db-connect");
+  if (!engine || !btn) return;
+  engine.addEventListener("change", syncDbFields);
+  syncDbFields();
+  btn.addEventListener("click", async (ev) => {
+    const sqlite = engine.value === "sqlite";
+    const portRaw = document.getElementById("db-port")?.value;
+    const body = {
+      engine: engine.value,
+      host: sqlite ? "" : (document.getElementById("db-host")?.value || ""),
+      port: sqlite || !portRaw ? null : Number(portRaw),
+      database: sqlite ? "" : (document.getElementById("db-name")?.value || ""),
+      username: sqlite ? "" : (document.getElementById("db-user")?.value || ""),
+      password: sqlite ? "" : (document.getElementById("db-password")?.value || ""),
+      path: sqlite ? (document.getElementById("db-path")?.value || "") : "",
+    };
+    try {
+      await withBusy(ev.currentTarget, () => api("/api/v1/datasets/db-connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }), "Conectando…");
+    } catch (err) {
+      const kind = err && err.status === 501 ? "info" : "error";
+      toast((err && err.message) || "No se pudo conectar.", kind);
+    }
+  });
+}
+
+bindLlmSettings();
+bindDbConnect();
+loadLlmSettings();
 refreshPreview();

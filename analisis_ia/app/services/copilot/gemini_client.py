@@ -32,12 +32,13 @@ def _import_genai():
     return genai, types
 
 
-def _client():
-    if not settings.gemini_api_key:
+def _client(api_key: str | None = None):
+    key = (api_key or settings.gemini_api_key or "").strip()
+    if not key:
         logger.warning("GEMINI_API_KEY missing; chat unavailable")
         raise GeminiUnavailable()
     genai, types = _import_genai()
-    return genai.Client(api_key=settings.gemini_api_key), types
+    return genai.Client(api_key=key), types
 
 
 def _raise_gemini(exc: BaseException) -> None:
@@ -132,13 +133,21 @@ def _parse_turn(response) -> ModelTurn:
     return ModelTurn(text=text, calls=calls, raw_model_content=raw)
 
 
-async def generate_reply(system_prompt: str, user_message: str, history: list[dict[str, str]]) -> str:
-    client, types = _client()
+async def generate_reply(
+    system_prompt: str,
+    user_message: str,
+    history: list[dict[str, str]],
+    *,
+    model: str | None = None,
+    api_key: str | None = None,
+) -> str:
+    client, types = _client(api_key=api_key)
     contents = _history_contents(types, history)
     contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+    model_name = (model or settings.gemini_model or "").strip()
     try:
         response = await client.aio.models.generate_content(
-            model=settings.gemini_model,
+            model=model_name,
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
@@ -156,14 +165,21 @@ async def generate_reply(system_prompt: str, user_message: str, history: list[di
     return text
 
 
-async def generate_with_tools(system_prompt: str, generic_contents: list[dict[str, Any]]) -> ModelTurn:
-    client, types = _client()
+async def generate_with_tools(
+    system_prompt: str,
+    generic_contents: list[dict[str, Any]],
+    *,
+    model: str | None = None,
+    api_key: str | None = None,
+) -> ModelTurn:
+    client, types = _client(api_key=api_key)
     contents = _generic_to_genai(types, generic_contents)
     config_kwargs = _tools_config(types)
     config_kwargs["system_instruction"] = system_prompt
+    model_name = (model or settings.gemini_model or "").strip()
     try:
         response = await client.aio.models.generate_content(
-            model=settings.gemini_model,
+            model=model_name,
             contents=contents,
             config=types.GenerateContentConfig(**config_kwargs),
         )

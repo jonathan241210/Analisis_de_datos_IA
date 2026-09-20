@@ -27,10 +27,10 @@ Craft bar (Slice 9):
 - Honor `prefers-reduced-motion`.
 - Agent activity panel inside the agent bubble (collapsible; default collapsed).
   - Collapsed summary row while waiting: **“Planificando pasos…”** plus a visible running animation (not only `✓`).
-  - Expanded: step trail with `is-running` spinner; intermediate `display` tables and small previews live here.
+  - Expanded: step trail with `is-running` spinner. Intermediate `display` tables live in the main bubble body (`.agent-artifacts`), not inside the panel.
   - Final narrative and proposed actions stay in the main bubble body (existing typewriter).
   - Fix perceived instant `✓`: CSS running animation and an optional minimum visible running time for fast tools.
-- Design sandbox first: create `analisis_ia/app/static/dev/agent-chat-demo.html` (+ replay JS) reusing `app.css`. Replay canned NDJSON (`step`, `display`, `fig`, `final`, `error`) with artificial delays. Scenarios: happy path (inspect → table → final), step error, quota error. Do not merge into production `app.js` until the parent signs off.
-- If touching chat hint copy, use the Slice 9 Assist / Agent texts for `#chat-mode-hint`. Spanish UI copy stays.
+- Design sandbox: `analisis_ia/app/static/dev/agent-chat-demo.html` (+ replay JS) reusing `app.css`. Replay canned NDJSON (`step`, `display`, `fig`, `final`, `error`, `fallback`) with artificial delays.
+- Slice 10 chrome: model-settings popover (three slots), ingest `.tech-details` card, database-connect form on Ingesta. Spanish UI copy stays.
 
 Edit only `analisis_ia/app/templates/` and `analisis_ia/app/static/`.

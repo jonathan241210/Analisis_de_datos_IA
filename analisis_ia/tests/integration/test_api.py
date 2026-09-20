@@ -27,6 +27,10 @@ def test_health_and_home():
     assert 'id="chat-mode"' in page.text
     assert "Asistente" in page.text
     assert ">Agente<" in page.text or "data-chat-mode=\"agent\"" in page.text
+    assert 'id="chat-settings-btn"' in page.text
+    assert 'id="llm-settings"' in page.text
+    assert 'id="db-connect"' in page.text
+    assert 'id="ingest-tech-wrap"' in page.text
 
 
 def test_upload_and_cast():
@@ -105,9 +109,9 @@ def test_eda_report_after_upload():
 
 def test_chat_replace_last(monkeypatch):
     async def fake_reply(*_a, **_k):
-        return "respuesta de prueba"
+        return "respuesta de prueba", None
 
-    monkeypatch.setattr("app.services.copilot.orchestrator.generate_reply", fake_reply)
+    monkeypatch.setattr("app.services.copilot.orchestrator.generate_reply_routed", fake_reply)
     files = {"file": ("demo.csv", b"nota\n1\n2\n", "text/csv")}
     assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
     first = client.post("/api/v1/chat/message", json={"message": "hola", "tab": "eda"})
@@ -143,13 +147,13 @@ def test_agent_stream_scripted(monkeypatch):
 
     n = {"i": 0}
 
-    async def fake_tools(_system, _contents):
+    async def fake_tools(_session, _system, _contents):
         n["i"] += 1
         if n["i"] == 1:
-            return ModelTurn(calls=[{"name": "inspect_dataset", "args": {"focus": "duplicates"}}])
-        return ModelTurn(text="Hay duplicados. Quita filas repetidas antes de entrenar.")
+            return ModelTurn(calls=[{"name": "inspect_dataset", "args": {"focus": "duplicates"}}]), None
+        return ModelTurn(text="Hay duplicados. Quita filas repetidas antes de entrenar."), None
 
-    monkeypatch.setattr("app.services.copilot.agent_loop.generate_with_tools", fake_tools)
+    monkeypatch.setattr("app.api.v1.chat.generate_with_tools_routed", fake_tools)
     files = {"file": ("demo.csv", b"a,b\n1,2\n1,2\n", "text/csv")}
     assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
     with client.stream("POST", "/api/v1/chat/agent", json={"message": "analiza", "tab": "eda"}) as res:
@@ -167,9 +171,106 @@ def test_chat_token_error(monkeypatch):
     async def boom(*_a, **_k):
         raise GeminiUnavailable(MSG_TOKENS)
 
-    monkeypatch.setattr("app.services.copilot.orchestrator.generate_reply", boom)
+    monkeypatch.setattr("app.services.copilot.orchestrator.generate_reply_routed", boom)
     files = {"file": ("demo.csv", b"nota\n1\n", "text/csv")}
     assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
     res = client.post("/api/v1/chat/message", json={"message": "hola", "tab": "eda"})
     assert res.status_code == 503
     assert res.json()["detail"] == MSG_TOKENS
+
+
+def test_correlation_ok_and_unexpected_is_clean(monkeypatch):
+    from app.core.exceptions import MSG_PLOT_CLEAN
+
+    files = {"file": ("demo.csv", b"a,b\n1,2\n3,4\n5,6\n", "text/csv")}
+    assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
+    ok = client.get("/api/v1/eda/correlation")
+    assert ok.status_code == 200
+    assert ok.json()["figure"]["data"]
+
+    def boom(_df):
+        raise TypeError("imshow() got an unexpected keyword argument 'autosize'")
+
+    monkeypatch.setattr("app.api.v1.eda.correlation_spec", boom)
+    failed = client.get("/api/v1/eda/correlation")
+    assert failed.status_code == 400
+    detail = failed.json()["detail"]
+    assert detail == MSG_PLOT_CLEAN
+    assert "autosize" not in detail
+    assert "TypeError" not in detail
+    assert "Traceback" not in detail
+
+
+def test_db_connect_is_stub():
+    from app.core.exceptions import MSG_DB_CONNECT_SOON
+
+    res = client.post(
+        "/api/v1/datasets/db-connect",
+        json={"engine": "postgresql", "host": "localhost", "password": "secret-pass"},
+    )
+    assert res.status_code == 501
+    body = res.json()
+    assert body["detail"] == MSG_DB_CONNECT_SOON
+    dumped = str(body)
+    assert "secret-pass" not in dumped
+
+
+def test_llm_settings_hides_keys_and_fallback(monkeypatch):
+    from app.services.copilot.errors import MSG_TOKENS
+    from app.services.copilot.gemini_client import GeminiUnavailable, ModelTurn
+
+    files = {"file": ("demo.csv", b"nota\n1\n2\n", "text/csv")}
+    assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
+
+    saved = client.post(
+        "/api/v1/settings/llm",
+        json={
+            "active_id": "gemini",
+            "slots": [
+                {"id": "gemini", "model": "gemini-2.0-flash", "key_mode": "user", "api_key": "gk-secret-test"},
+                {"id": "openai", "model": "gpt-4o-mini", "key_mode": "user", "api_key": "sk-secret-test"},
+                {"id": "anthropic", "model": "claude-sonnet-4-5", "key_mode": "user"},
+            ],
+        },
+    )
+    assert saved.status_code == 200
+    public = saved.json()
+    blob = str(public)
+    assert "gk-secret-test" not in blob
+    assert "sk-secret-test" not in blob
+    assert "api_key" not in public
+    assert public["active_id"] == "gemini"
+    by_id = {row["id"]: row for row in public["slots"]}
+    assert by_id["gemini"]["has_user_key"] is True
+    assert by_id["openai"]["has_user_key"] is True
+    assert by_id["anthropic"]["has_user_key"] is False
+
+    got = client.get("/api/v1/settings/llm").json()
+    assert "gk-secret-test" not in str(got)
+    assert "api_key" not in got
+
+    async def fake_call(slot, **_k):
+        if slot["id"] == "gemini":
+            raise GeminiUnavailable(MSG_TOKENS)
+        return ModelTurn(text="respuesta de openai")
+
+    monkeypatch.setattr("app.services.copilot.llm_router._call_slot", fake_call)
+    res = client.post("/api/v1/chat/message", json={"message": "hola", "tab": "eda"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["content"] == "respuesta de openai"
+    assert body["fallback"]["from_id"] == "gemini"
+    assert body["fallback"]["to_id"] == "openai"
+    after = client.get("/api/v1/settings/llm").json()
+    assert after["active_id"] == "openai"
+
+
+def test_llm_settings_validation_redacts_key():
+    res = client.post(
+        "/api/v1/settings/llm",
+        json={"active_id": "gemini", "slots": [{"id": "gemini", "api_key": 12345}]},
+    )
+    assert res.status_code == 422
+    dumped = str(res.json())
+    assert "12345" not in dumped
+    assert "[redacted]" in dumped

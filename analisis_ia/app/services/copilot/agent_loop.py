@@ -109,7 +109,11 @@ async def run_agent_loop(
             if summary:
                 done_step["summary"] = summary
             yield done_step
-            tool_results.append({"name": name, "response": {"result": payload}})
+            tool_results.append({
+                "name": name,
+                "call_id": str(call.get("call_id") or ""),
+                "response": {"result": payload},
+            })
         contents.append({"role": "tool", "results": tool_results})
         yield {"type": "step", "id": "think-0", "label": "Planificando pasos…", "status": "running"}
 

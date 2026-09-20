@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Any
 
 import pandas as pd
 
@@ -23,3 +24,6 @@ class AnalysisSession:
     history: list[pd.DataFrame] = field(default_factory=list)
     chat_history: list[dict[str, str]] = field(default_factory=list)
     ingest_meta: dict[str, str] = field(default_factory=dict)
+    llm_active_id: str = "gemini"
+    llm_slots: dict[str, dict[str, str]] = field(default_factory=dict)
+    llm_last_fallback: dict[str, Any] | None = None

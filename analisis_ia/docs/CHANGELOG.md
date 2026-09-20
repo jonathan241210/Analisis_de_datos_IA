@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-20 (Slice 10 — tables, models, ingest)
+
+### Added
+
+- `.agent-artifacts` on Agente bubbles: intermediate `display` tables sit next to the final narrative, not inside the collapsible activity panel. Demo replay matches production.
+- Copiloto model settings (gear): three slots (Google Gemini, OpenAI, Anthropic), built-in vs user API key, `GET`/`POST /api/v1/settings/llm`. Keys stay in the in-memory session and are never returned.
+- Auto fallback when the active model hits the query/quota limit; UI toasts and updates `#chat-model`. Agent stream emits a `fallback` NDJSON event.
+- Ingesta **Conexión a base de datos** form. `POST /api/v1/datasets/db-connect` returns 501 until engine/host are confirmed.
+- Demo scenario “Fallback de modelo” on `/static/dev/agent-chat-demo.html`.
+
+### Changed
+
+- Correlation heatmaps pass `autosize` / `margin` / `height` to `update_layout` (not `px.imshow` kwargs).
+- Histogram, boxplot, and correlation unexpected failures return 400 with “Limpia el dataset primero y vuelve a intentar el gráfico.” instead of a 500 body.
+- `.tech-details` is a labeled notebook card (archivo, encoding, separador).
+- Static assets `?v=` bumped to `0.1.5`.
+
+### Tests
+
+- Pytest: 46 passed (`analisis_ia/tests`), including correlation, clean plot errors, LLM settings redaction/fallback, and the DB stub.
+
 ## 2026-09-19 (Slice 9 — agent chat UX)
 
 ### Added

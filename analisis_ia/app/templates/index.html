@@ -39,11 +39,45 @@
             <span class="drop-sub">o haz clic · CSV, TSV, Excel</span>
           </label>
           <div id="ingest-meta" class="metrics"></div>
-          <details class="tech-details">
+          <details class="tech-details" id="ingest-tech-wrap" hidden>
             <summary>Detalles técnicos de lectura</summary>
-            <div id="ingest-tech" class="muted"></div>
+            <dl id="ingest-tech" class="tech-grid"></dl>
           </details>
           <div id="ingest-table" class="table-wrap"></div>
+
+          <article class="db-connect" id="db-connect">
+            <h3>Conexión a base de datos</h3>
+            <p class="lede">Como alternativa al archivo: lee una tabla desde un motor SQL. Motor y host se confirman aparte; este bloque deja el flujo listo.</p>
+            <div class="row">
+              <label>Motor
+                <select id="db-engine">
+                  <option value="postgresql">PostgreSQL</option>
+                  <option value="mysql">MySQL</option>
+                  <option value="sqlite">SQLite</option>
+                </select>
+              </label>
+              <label id="db-host-wrap">Host
+                <input id="db-host" placeholder="localhost" autocomplete="off" />
+              </label>
+              <label id="db-port-wrap">Puerto
+                <input id="db-port" type="number" inputmode="numeric" placeholder="5432" />
+              </label>
+              <label id="db-name-wrap">Base de datos
+                <input id="db-name" autocomplete="off" />
+              </label>
+              <label id="db-path-wrap" hidden>Archivo SQLite
+                <input id="db-path" placeholder="/ruta/archivo.db" autocomplete="off" />
+              </label>
+              <label id="db-user-wrap">Usuario
+                <input id="db-user" autocomplete="off" />
+              </label>
+              <label id="db-pass-wrap">Contraseña
+                <input id="db-password" type="password" autocomplete="new-password" />
+              </label>
+              <button type="button" id="btn-db-connect">Conectar</button>
+            </div>
+            <p class="hint" id="db-connect-hint">Prototipo de ingesta: aún no abre una sesión SQL real.</p>
+          </article>
         </section>
 
         <section id="panel-eda" class="panel">
@@ -292,9 +326,29 @@
         <div class="chat-actions">
           <button type="button" class="chat-toggle" id="chat-toggle" aria-label="Colapsar chat" aria-expanded="true" aria-controls="chat-log">⟨</button>
         </div>
-        <header>
-          <h2>Copiloto</h2>
-          <p id="chat-model" class="muted" aria-live="polite">{{ gemini_model }}</p>
+        <header class="chat-header">
+          <div class="chat-head">
+            <h2>Copiloto</h2>
+            <button type="button" class="icon-btn" id="chat-settings-btn" aria-label="Ajustes de modelo" aria-expanded="false" aria-controls="llm-settings">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.8a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.8 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.92 14.5a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.69.22l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.5.42h3.8c.24 0 .45-.18.5-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.26.12.55.02.69-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/>
+              </svg>
+            </button>
+          </div>
+          <button type="button" id="chat-model" class="chat-model-btn" aria-live="polite" aria-haspopup="dialog">{{ gemini_model }}</button>
+          <div id="llm-settings" class="settings-pop" hidden>
+            <div class="settings-pop-card" role="dialog" aria-labelledby="llm-settings-title">
+              <div class="settings-pop-head">
+                <h3 id="llm-settings-title">Modelos del copiloto</h3>
+                <button type="button" class="icon-btn" id="llm-settings-close" aria-label="Cerrar ajustes">×</button>
+              </div>
+              <p class="hint">Tres huecos: Gemini, OpenAI y Anthropic. Si un modelo agota el cupo, pasamos al siguiente que tenga clave.</p>
+              <div id="llm-slots" class="llm-slots"></div>
+              <div class="settings-pop-actions">
+                <button type="button" id="llm-settings-save">Guardar</button>
+              </div>
+            </div>
+          </div>
           <div class="subtabs chat-mode" id="chat-mode" role="tablist" aria-label="Modo del copiloto">
             <button type="button" class="subtab is-active" role="tab" data-chat-mode="assist" aria-selected="true">Asistente</button>
             <button type="button" class="subtab" role="tab" data-chat-mode="agent" aria-selected="false">Agente</button>

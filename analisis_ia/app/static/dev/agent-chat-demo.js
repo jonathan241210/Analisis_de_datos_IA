@@ -225,6 +225,38 @@ const SCENARIOS = {
     { delay: 380 },
     { type: "error", content: "Se superó el límite de consultas", quota: true },
   ],
+
+  fallback: [
+    { type: "step", id: "think-0", label: "Planificando pasos…", status: "running" },
+    { delay: 420 },
+    {
+      type: "fallback",
+      from_id: "gemini",
+      from_label: "Google Gemini",
+      to_id: "openai",
+      to_label: "OpenAI",
+      to_model: "gpt-4o-mini",
+    },
+    { type: "step", id: "think-0", label: "Planificando pasos…", status: "done" },
+    { type: "step", id: "t1", label: "Revisando el dataset…", status: "running", summary: "Sigo con OpenAI tras el cupo de Gemini." },
+    { delay: 480 },
+    {
+      type: "display",
+      display: {
+        columns: ["columna", "nulos"],
+        rows: [
+          { columna: "precio", nulos: 3 },
+          { columna: "descuento", nulos: 11 },
+        ],
+      },
+    },
+    { type: "step", id: "t1", label: "Revisando el dataset", status: "done", summary: "Sigo con OpenAI tras el cupo de Gemini." },
+    { delay: 200 },
+    {
+      type: "final",
+      content: "Gemini agotó el cupo; completé la auditoría con OpenAI. Siguen 3 nulos en precio y 11 en descuento.",
+    },
+  ],
 };
 
 const META = {
@@ -259,6 +291,10 @@ const META = {
   quota: {
     mode: "assist",
     prompt: "¿Puedes generar 5 gráficos distintos de este dataset?",
+  },
+  fallback: {
+    mode: "agent",
+    prompt: "Haz una auditoría completa, aunque Gemini esté al límite.",
   },
 };
 
@@ -353,9 +389,13 @@ function createAgentRunBubble() {
   activity.appendChild(summary);
   activity.appendChild(body);
 
+  const artifacts = document.createElement("div");
+  artifacts.className = "agent-artifacts";
+
   const bubbleText = document.createElement("div");
   bubbleText.className = "bubble-text";
   div.appendChild(activity);
+  div.appendChild(artifacts);
   div.appendChild(bubbleText);
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
@@ -366,6 +406,7 @@ function createAgentRunBubble() {
     label: summary.querySelector(".agent-activity-label"),
     trail,
     body,
+    artifacts,
     bubbleText,
     pendingSettle: new Map(),
   };
@@ -600,8 +641,9 @@ async function runScenario(name) {
       const box = document.createElement("div");
       box.className = "exec-result";
       renderTable(box, raw.display);
-      run.body.appendChild(box);
-      run.activity.open = true;
+      (run.artifacts || run.body).appendChild(box);
+    } else if (raw.type === "fallback") {
+      applyDemoFallback(raw);
     } else if (raw.type === "fig") {
       if (!run) run = createAgentRunBubble();
       showFig(run, raw.fig);
@@ -679,3 +721,102 @@ if (chatToggle) {
 }
 
 runScenario(currentScenario);
+
+const DEMO_SLOTS = [
+  { id: "gemini", label: "Google Gemini", model: "gemini-2.5-flash", key_mode: "builtin", has_builtin_key: true, has_user_key: false, ready: true },
+  { id: "openai", label: "OpenAI", model: "gpt-4o-mini", key_mode: "user", has_builtin_key: false, has_user_key: false, ready: false },
+  { id: "anthropic", label: "Anthropic", model: "claude-sonnet-4-5", key_mode: "user", has_builtin_key: false, has_user_key: false, ready: false },
+];
+let demoLlm = { active_id: "gemini", slots: DEMO_SLOTS.map((s) => ({ ...s })) };
+
+function paintDemoChip() {
+  const el = document.getElementById("chat-model");
+  if (!el) return;
+  const slot = demoLlm.slots.find((s) => s.id === demoLlm.active_id) || demoLlm.slots[0];
+  el.textContent = `${slot.label} · ${slot.model}`;
+}
+
+function renderDemoSlots() {
+  const root = document.getElementById("llm-slots");
+  if (!root) return;
+  root.innerHTML = demoLlm.slots.map((slot) => `
+    <article class="llm-slot" data-slot-id="${slot.id}">
+      <div class="llm-slot-head">
+        <label class="llm-slot-pick">
+          <input type="radio" name="llm-active" value="${slot.id}" ${slot.id === demoLlm.active_id ? "checked" : ""} />
+          <span>${slot.label}</span>
+        </label>
+        <span class="${slot.ready ? "llm-ready" : "llm-missing"}">${slot.ready ? "listo" : "sin clave"}</span>
+      </div>
+      <label>Modelo
+        <input class="llm-model" value="${esc(slot.model)}" />
+      </label>
+      <fieldset class="llm-key-mode">
+        <legend>Clave</legend>
+        <label><input type="radio" name="key-${slot.id}" value="builtin" ${slot.key_mode === "builtin" ? "checked" : ""} ${slot.has_builtin_key ? "" : "disabled"} /> Del servidor</label>
+        <label><input type="radio" name="key-${slot.id}" value="user" ${slot.key_mode === "user" ? "checked" : ""} /> La mía</label>
+      </fieldset>
+      <label>API key
+        <input class="llm-key" type="password" autocomplete="new-password" placeholder="${slot.has_user_key ? "•••• guardada" : "Pega tu clave (demo local)"}" />
+      </label>
+    </article>
+  `).join("");
+}
+
+function applyDemoFallback(ev) {
+  demoLlm.active_id = ev.to_id || "openai";
+  const slot = demoLlm.slots.find((s) => s.id === demoLlm.active_id);
+  if (slot) {
+    slot.ready = true;
+    if (ev.to_model) slot.model = ev.to_model;
+  }
+  paintDemoChip();
+  toast(`Se superó el cupo de ${ev.from_label}. Pasé a ${ev.to_label}.`);
+}
+
+function setDemoSettingsOpen(open) {
+  const pop = document.getElementById("llm-settings");
+  const btn = document.getElementById("chat-settings-btn");
+  if (!pop) return;
+  pop.hidden = !open;
+  if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+(function bindDemoSettings() {
+  const openBtn = document.getElementById("chat-settings-btn");
+  const chip = document.getElementById("chat-model");
+  const closeBtn = document.getElementById("llm-settings-close");
+  const saveBtn = document.getElementById("llm-settings-save");
+  const pop = document.getElementById("llm-settings");
+  if (!openBtn || !pop) return;
+  renderDemoSlots();
+  paintDemoChip();
+  const toggle = () => {
+    const willOpen = pop.hidden;
+    if (willOpen) renderDemoSlots();
+    setDemoSettingsOpen(willOpen);
+  };
+  openBtn.addEventListener("click", (ev) => { ev.stopPropagation(); toggle(); });
+  chip?.addEventListener("click", (ev) => { ev.stopPropagation(); toggle(); });
+  closeBtn?.addEventListener("click", () => setDemoSettingsOpen(false));
+  saveBtn?.addEventListener("click", () => {
+    const root = document.getElementById("llm-slots");
+    const active = root.querySelector("input[name='llm-active']:checked");
+    if (active) demoLlm.active_id = active.value;
+    [...root.querySelectorAll(".llm-slot")].forEach((card) => {
+      const slot = demoLlm.slots.find((s) => s.id === card.dataset.slotId);
+      if (!slot) return;
+      slot.model = card.querySelector(".llm-model")?.value || slot.model;
+      slot.key_mode = card.querySelector(`input[name="key-${slot.id}"]:checked`)?.value || slot.key_mode;
+      const typed = card.querySelector(".llm-key")?.value || "";
+      if (typed) {
+        slot.has_user_key = true;
+        slot.ready = true;
+      }
+    });
+    paintDemoChip();
+    renderDemoSlots();
+    setDemoSettingsOpen(false);
+    toast("Ajustes de modelo guardados (demo)");
+  });
+})();

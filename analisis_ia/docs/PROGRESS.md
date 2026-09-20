@@ -2,9 +2,9 @@
 
 ## Current slice
 
-Slice 9 complete — Agent chat UX (hybrid `summary` + activity panel) and notebook motion pass. Design replay at `/static/dev/agent-chat-demo.html`; production `app.js` paints the same panel. Quota copy is “Se superó el límite de consultas”. Pytest: 40 passed.
+Slice 10 complete — Agent `display` tables in the bubble body, copiloto model slots (Gemini / OpenAI / Anthropic) with optional user keys and quota fallback, plot errors that ask to clean first, notebook polish on ingest `.tech-details`, and a database-connect prototype on Ingesta. Pytest: 46 passed.
 
-**Up next:** Slice 10 — listed below. Chat UX changes are prototyped on `/static/dev/agent-chat-demo.html` before production `app.js`.
+**Up next:** persistence (Supabase Auth / Postgres / Storage), a real SQL ingest once engine/host are confirmed, and richer ML.
 
 ## Completed
 
@@ -72,40 +72,20 @@ Slice 9 complete — Agent chat UX (hybrid `summary` + activity panel) and noteb
 - Still out of scope: duplicate column-name detection, persisting vars between `run_python` steps, `AGENT_MOCK=1`.
 - Pytest: 40 passed (`analisis_ia/tests`).
 
-## Next (Slice 10 — planned)
+### Slice 10
 
-Chat items **1–2** iterate on the demo page first, then merge into production. Tools/ingest items **3–5** can land on the live app.
-
-### 1. Agent `display` tables in the bubble (not inside the activity panel)
-
-Today intermediate `.exec-result` tables sit in `.agent-activity-body` (the collapsible trail). Keep the step list + summaries in that panel. Move **tables / query results** into the main `.bubble.assistant.agent-run` body, next to the final narrative (they are part of what the user should see, not only activity).
-
-- First: `app/static/dev/agent-chat-demo.html` (+ `agent-chat-demo.js`).
-- Then: the same layout in production `app.js`.
-
-### 2. Model picker + own API key (settings)
-
-`#chat-model` (or a settings control next to it) must choose among providers, not only Gemini.
-
-- **Three slots for now** (Gemini + two TBD; Jona will confirm which). Built-in vs “use my key”.
-- Settings: floating panel or gear. User can paste an API key in the UI and pick that model for chat.
-- **Auto fallback:** if the current model hits the query/quota limit, switch to the next configured model.
-- Secrets stay out of source; do not log keys. Demo the picker chrome on `agent-chat-demo.html` before wiring real providers.
-
-### 3. Plot / correlation errors → clean data first
-
-When histogram, boxplot, correlation, or similar viz fails (example already seen: `GET /eda/correlation` → `TypeError: imshow() got an unexpected keyword argument 'autosize'`), the UI must not dump a 500. Show a short Spanish line: clean the dataset first, then retry the chart. Keep the traceback in the server log.
-
-### 4. Ingest `.tech-details` visual polish
-
-`details.tech-details` (file name, encoding, separator) looks too bare. Restyle it in the notebook identity (same palette; not a new brand).
-
-### 5. Database connection (ingest)
-
-Add a database connection area: either a block on the **Ingesta** panel or a dedicated subsection/tab. Prototype UX on the live ingest screen (not the chat demo). Engine/host details TBD with Jona.
+- Agent `display` tables render in `.agent-artifacts` on the main assistant bubble (demo + production). The collapsible activity panel keeps the step trail only.
+- Copiloto settings (gear + `#chat-model`): three slots — Google Gemini, OpenAI, Anthropic. Built-in env key or a user-pasted key stored in the in-memory session. GET `/api/v1/settings/llm` never returns secrets. Quota on the active model falls back to the next ready slot (`fallback` NDJSON / JSON).
+- `px.imshow` layout kwargs moved off the constructor (the `autosize` TypeError). Histogram / boxplot / correlation unexpected failures return 400 with “Limpia el dataset primero y vuelve a intentar el gráfico.” Tracebacks stay in the uvicorn log.
+- Ingesta `.tech-details` is a notebook card with labeled archivo / encoding / separador.
+- Ingesta **Conexión a base de datos** form (PostgreSQL / MySQL / SQLite). `POST /api/v1/datasets/db-connect` is a 501 stub until engine/host are confirmed.
+- Static replay at `/static/dev/agent-chat-demo.html` includes the model panel and a fallback scenario. Static assets `?v=` bumped to `0.1.5`.
+- Pytest: 46 passed (`analisis_ia/tests`).
 
 ## Later (after Slice 10)
 
+- Wire a real SQL ingest once Jona confirms engine/host.
+- Confirm or swap the OpenAI / Anthropic slot brands if needed.
 - Supabase Auth, Postgres, Storage (replace in-memory sessions).
 - Persist trained models; richer ML (CV, predict on new rows).
 - Stronger sandbox isolation (process/container) if untrusted users.

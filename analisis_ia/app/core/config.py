@@ -14,6 +14,10 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
     gemini_model: str = ""
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-5"
     supabase_url: str = ""
     supabase_anon_key: str = ""
     n_head_rows: int = 3

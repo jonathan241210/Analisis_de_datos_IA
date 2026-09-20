@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Query, Request
 
 from app.api.deps import current_session
-from app.core.exceptions import AppError
+from app.core.exceptions import MSG_PLOT_CLEAN, AppError
 from app.infra.session_store import store
 from app.services.dataframe_ops import requested_column_list, resolve_columns
 from app.services.eda import (
@@ -62,7 +62,7 @@ async def histogram(
         raise AppError(str(exc), 400) from exc
     except Exception:
         logger.exception("Histogram failed")
-        raise AppError("Error al generar el gráfico", 500) from None
+        raise AppError(MSG_PLOT_CLEAN, 400) from None
 
 
 @router.get("/boxplot")
@@ -76,7 +76,7 @@ async def boxplot(request: Request, columns: list[str] | None = Query(default=No
         raise AppError(str(exc), 400) from exc
     except Exception:
         logger.exception("Boxplot failed")
-        raise AppError("Error al generar el gráfico", 500) from None
+        raise AppError(MSG_PLOT_CLEAN, 400) from None
 
 
 @router.get("/correlation")
@@ -89,4 +89,4 @@ async def correlation(request: Request) -> dict:
         raise AppError(str(exc), 400) from exc
     except Exception:
         logger.exception("Correlation failed")
-        raise AppError("Error al generar el gráfico", 500) from None
+        raise AppError(MSG_PLOT_CLEAN, 400) from None

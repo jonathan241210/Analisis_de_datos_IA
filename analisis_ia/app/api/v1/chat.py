@@ -5,13 +5,16 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import current_session
 from app.core.config import settings
+from app.core.exceptions import AppError
 from app.infra.session_store import store
 from app.sandbox.executor import run_generated_code
 from app.schemas.payloads import AgentApplyRequest, ChatRequest, ExecuteRequest
 from app.services.copilot.agent_loop import run_agent_loop
 from app.services.copilot.errors import MSG_GENERIC
 from app.services.copilot.gemini_client import GeminiUnavailable
+from app.services.copilot.llm_router import generate_with_tools_routed
 from app.services.copilot.orchestrator import chat_turn
+from app.services.copilot.prompts import AGENT_PROMPT
 from app.services.copilot.tools import apply_confirmed_action
 from app.services.dataframe_ops import df_preview
 
@@ -30,7 +33,7 @@ async def message(request: Request, body: ChatRequest) -> dict:
     session = store.require_df(current_session(request))
     if body.replace_last:
         trim_last_turn(session.chat_history)
-    result = await chat_turn(session.df, body.message, session.chat_history, body.tab)
+    result = await chat_turn(session.df, body.message, session.chat_history, body.tab, session)
     session.chat_history.append({"role": "user", "content": body.message})
     session.chat_history.append({"role": "assistant", "content": result["content"]})
     result["history"] = session.chat_history
@@ -43,14 +46,25 @@ async def agent_message(request: Request, body: ChatRequest) -> StreamingRespons
     if body.replace_last:
         trim_last_turn(session.chat_history)
 
+    async def ask(contents):
+        turn, fallback = await generate_with_tools_routed(session, AGENT_PROMPT, contents)
+        session.llm_last_fallback = fallback
+        return turn
+
     async def events():
         try:
-            async for ev in run_agent_loop(session.df, body.message, session.chat_history, body.tab):
+            async for ev in run_agent_loop(session.df, body.message, session.chat_history, body.tab, ask=ask):
+                fallback = session.llm_last_fallback
+                if fallback:
+                    session.llm_last_fallback = None
+                    yield json.dumps({"type": "fallback", **fallback}, ensure_ascii=False) + "\n"
                 if ev.get("type") == "final":
                     session.chat_history.append({"role": "user", "content": body.message})
                     session.chat_history.append({"role": "assistant", "content": ev.get("content") or ""})
                     ev["history"] = session.chat_history
                 yield json.dumps(ev, ensure_ascii=False, default=str) + "\n"
+        except AppError as exc:
+            yield json.dumps({"type": "error", "detail": exc.message}, ensure_ascii=False) + "\n"
         except GeminiUnavailable as exc:
             yield json.dumps({"type": "error", "detail": exc.message}, ensure_ascii=False) + "\n"
         except Exception:

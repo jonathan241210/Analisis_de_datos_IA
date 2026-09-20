@@ -1,6 +1,6 @@
 import pandas as pd
 
-from app.services.eda import boxplot_spec, build_eda_report, histogram_spec
+from app.services.eda import boxplot_spec, build_eda_report, correlation_spec, histogram_spec
 from app.services.ml import train_supervised
 
 
@@ -40,6 +40,14 @@ def test_boxplot_several_columns_stacked():
     assert one["data"]
     assert len(many["data"]) == 2
     assert many["layout"]["height"] >= 700
+
+
+def test_correlation_heatmap():
+    df = pd.DataFrame({"a": [1, 2, 3, 4], "b": [4, 3, 2, 1], "c": ["x", "y", "x", "y"]})
+    fig = correlation_spec(df)
+    assert fig["data"]
+    layout = fig.get("layout") or {}
+    assert layout.get("autosize") is True
 
 
 def test_supervised_smoke():

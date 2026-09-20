@@ -148,8 +148,13 @@ def correlation_spec(df: pd.DataFrame) -> dict:
         raise ValueError("Se necesitan al menos 2 columnas numéricas.")
     corr = df[num_cols].corr(numeric_only=True)
     fig = px.imshow(
-        corr, text_auto=".2f", aspect="auto", color_continuous_scale="RdBu_r",
+        corr,
+        text_auto=".2f",
+        aspect="auto",
+        color_continuous_scale="RdBu_r",
         title="Matriz de correlación",
+    )
+    fig.update_layout(
         height=max(420, 48 * len(num_cols) + 160),
         autosize=True,
         margin={"l": 80, "r": 28, "t": 64, "b": 80},
