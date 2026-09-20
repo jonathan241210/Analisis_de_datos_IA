@@ -19,7 +19,7 @@
 
 ### Tests
 
-- Pytest: 46 passed (`analisis_ia/tests`), including correlation, clean plot errors, LLM settings redaction/fallback, and the DB stub.
+- Pytest: 45 passed (`analisis_ia/tests`), including correlation, clean plot errors, LLM settings redaction/fallback, and the DB stub.
 
 ## 2026-09-19 (Slice 9 — agent chat UX)
 

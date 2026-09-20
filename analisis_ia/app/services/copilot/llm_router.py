@@ -339,14 +339,14 @@ async def _with_fallback(
                 generic_contents=generic_contents,
                 with_tools=with_tools,
             )
-        except AppError:
-            raise
         except GeminiUnavailable as exc:
             last_exc = exc
             if exc.message != MSG_TOKENS:
                 raise
             logger.warning("LLM quota on %s; trying next slot", sid)
             continue
+        except AppError:
+            raise
         fallback = None
         if sid != origin:
             session.llm_active_id = sid

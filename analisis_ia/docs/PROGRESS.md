@@ -2,7 +2,7 @@
 
 ## Current slice
 
-Slice 10 complete — Agent `display` tables in the bubble body, copiloto model slots (Gemini / OpenAI / Anthropic) with optional user keys and quota fallback, plot errors that ask to clean first, notebook polish on ingest `.tech-details`, and a database-connect prototype on Ingesta. Pytest: 46 passed.
+Slice 10 complete — Agent `display` tables in the bubble body, copiloto model slots (Gemini / OpenAI / Anthropic) with optional user keys and quota fallback, plot errors that ask to clean first, notebook polish on ingest `.tech-details`, and a database-connect prototype on Ingesta. Pytest: 45 passed.
 
 **Up next:** persistence (Supabase Auth / Postgres / Storage), a real SQL ingest once engine/host are confirmed, and richer ML.
 
@@ -80,7 +80,7 @@ Slice 10 complete — Agent `display` tables in the bubble body, copiloto model 
 - Ingesta `.tech-details` is a notebook card with labeled archivo / encoding / separador.
 - Ingesta **Conexión a base de datos** form (PostgreSQL / MySQL / SQLite). `POST /api/v1/datasets/db-connect` is a 501 stub until engine/host are confirmed.
 - Static replay at `/static/dev/agent-chat-demo.html` includes the model panel and a fallback scenario. Static assets `?v=` bumped to `0.1.5`.
-- Pytest: 46 passed (`analisis_ia/tests`).
+- Pytest: 45 passed (`analisis_ia/tests`).
 
 ## Later (after Slice 10)
 
