@@ -37,7 +37,11 @@ TOOL_SPECS: list[dict[str, Any]] = [
                     "type": "string",
                     "enum": ["all", "schema", "nulls", "duplicates", "outliers", "ml"],
                     "description": "Qué revisar. all = auditoría completa.",
-                }
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "Frase breve en español (máx. ~120 caracteres) de qué verá el usuario.",
+                },
             },
         },
     },
@@ -56,6 +60,10 @@ TOOL_SPECS: list[dict[str, Any]] = [
                     "type": "string",
                     "enum": ["inspect", "plot", "table", "other"],
                     "description": "Motivo: inspeccionar, graficar, tabla u otro.",
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "Frase breve en español (máx. ~120 caracteres) de qué verá el usuario.",
                 },
             },
             "required": ["code"],
@@ -86,7 +94,11 @@ TOOL_SPECS: list[dict[str, Any]] = [
                         },
                         "required": ["op", "label"],
                     },
-                }
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "Frase breve en español (máx. ~120 caracteres) de qué verá el usuario.",
+                },
             },
             "required": ["actions"],
         },

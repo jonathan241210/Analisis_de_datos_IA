@@ -145,3 +145,51 @@ async def test_agent_loop_uses_inspect_then_replies():
     final = [e for e in events if e["type"] == "final"][-1]
     assert "nulos" in final["content"].lower()
     assert n["i"] == 2
+
+
+@pytest.mark.asyncio
+async def test_agent_loop_step_includes_summary_when_provided():
+    df = pd.DataFrame({"nota": [1.0, None, 3.0]})
+    n = {"i": 0}
+
+    async def ask(_contents):
+        n["i"] += 1
+        if n["i"] == 1:
+            return ModelTurn(
+                calls=[
+                    {
+                        "name": "inspect_dataset",
+                        "args": {"focus": "nulls", "summary": "Revisando cuántos valores nulos tiene el dataset."},
+                    }
+                ]
+            )
+        return ModelTurn(text="Hay nulos en nota.")
+
+    events = []
+    async for ev in run_agent_loop(df, "analiza el dataset", [], "eda", ask=ask):
+        events.append(ev)
+    tool_steps = [e for e in events if e["type"] == "step" and e.get("id") == "t1"]
+    assert tool_steps, "expected a step event for the dispatched tool call"
+    for step in tool_steps:
+        assert step.get("summary") == "Revisando cuántos valores nulos tiene el dataset."
+
+
+@pytest.mark.asyncio
+async def test_agent_loop_step_omits_summary_when_missing():
+    df = pd.DataFrame({"nota": [1.0, None, 3.0]})
+    n = {"i": 0}
+
+    async def ask(_contents):
+        n["i"] += 1
+        if n["i"] == 1:
+            return ModelTurn(calls=[{"name": "inspect_dataset", "args": {"focus": "nulls"}}])
+        return ModelTurn(text="Hay nulos en nota.")
+
+    events = []
+    async for ev in run_agent_loop(df, "analiza el dataset", [], "eda", ask=ask):
+        events.append(ev)
+    tool_steps = [e for e in events if e["type"] == "step" and e.get("id") == "t1"]
+    assert tool_steps
+    for step in tool_steps:
+        assert not step.get("summary")
+        assert step.get("label")

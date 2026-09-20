@@ -25,7 +25,8 @@ analisis_ia/
     ├── sandbox/             AST validate + timed exec
     ├── infra/               In-memory SessionStore; Supabase stub
     ├── templates/           index.html (module tabs + inner subtabs + right chat)
-    └── static/              css/app.css (100dvh light notebook), js/app.js (DnD, subtabs)
+    └── static/              css/app.css (100dvh light notebook), js/app.js (DnD, subtabs, agent activity)
+                             static/dev/agent-chat-demo.html — Slice 9 replay (no Gemini)
 ```
 
 ### MVC mapping
@@ -45,7 +46,7 @@ Right complementary chat. Toggle **Asistente | Agente**.
 | Mode | Behavior |
 |------|----------|
 | Asistente (default) | Keyword `route_specialist` + one Gemini call. User runs code via **Ejecutar** (`POST /api/v1/chat/execute`). |
-| Agente | Function calling loop (`inspect_dataset`, `run_python` read-only, `propose_mutations`). Streamed steps; mutations only after **Aplicar** (`POST /api/v1/chat/apply`). Vague prompts → quality audit + ML recs. |
+| Agente | Function calling loop (`inspect_dataset`, `run_python` read-only, `propose_mutations`). Streamed steps include optional Gemini `summary` on the same tool call (no extra round-trip). Mutations only after **Aplicar** (`POST /api/v1/chat/apply`). Vague prompts → quality audit + ML recs. |
 
 Assist specialists (prompt only): cleaning, EDA, ML. Orchestrator still routes by keywords + active tab.
 
@@ -53,7 +54,7 @@ Assist specialists (prompt only): cleaning, EDA, ML. Orchestrator still routes b
 
 ## Cursor subagents
 
-legacy-extractor, sandbox-guardian, security-auditor, verifier, **ui-designer**.
+legacy-extractor, sandbox-guardian, security-auditor, verifier, **ui-designer**, **copilot-logic**.
 
 ## Persistence
 

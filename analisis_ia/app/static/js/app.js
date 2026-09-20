@@ -8,6 +8,9 @@ const CHAT_H_KEY = "analisis_ia.chatHeight";
 const CHAT_MODE_KEY = "analisis_ia.chatMode";
 const CHAT_MIN_W = 280;
 const CHAT_MAX_RATIO = 0.55;
+const AGENT_MIN_RUNNING_MS = 320;
+const HINT_ASSIST = "Recomendado para tareas concretas: pide código y ejecútalo con <strong>Ejecutar</strong>. Las tablas aparecen en el chat; las gráficas en Visualización (EDA o ML).";
+const HINT_AGENT = "Recomendado para diagnosticar el dataset (calidad, patrones, siguientes pasos). Usa más consultas a la IA; el límite diario puede agotarse antes. Los cambios al dataset piden confirmación.";
 
 let activeTab = "ingest";
 let classifiers = [];
@@ -16,7 +19,7 @@ let ingestMeta = null;
 let toastTimer = 0;
 const UI_ERR = {
   chat: "Error al generar respuesta",
-  tokens: "Se acabaron los tokens",
+  tokens: "Se superó el límite de consultas",
   execute: "No se pudo ejecutar el código",
   plot: "Error al generar el gráfico",
   ml: "Error al entrenar el modelo",
@@ -1199,28 +1202,106 @@ function showAgentTrail() {
   const log = document.getElementById("chat-log");
   const div = document.createElement("div");
   div.className = "bubble assistant agent-run";
+
+  const activity = document.createElement("details");
+  activity.className = "agent-activity is-running";
+
+  const summary = document.createElement("summary");
+  summary.className = "agent-activity-summary";
+  summary.innerHTML = `
+    <span class="agent-activity-status">
+      <span class="agent-spinner" aria-hidden="true"></span>
+      <span class="agent-activity-label">Planificando pasos…</span>
+    </span>
+    <span class="agent-activity-chevron" aria-hidden="true"></span>
+  `;
+
+  const panel = document.createElement("div");
+  panel.className = "agent-activity-body";
   const trail = document.createElement("ol");
   trail.className = "agent-trail";
+  panel.appendChild(trail);
+  activity.appendChild(summary);
+  activity.appendChild(panel);
+
   const body = document.createElement("div");
   body.className = "bubble-text";
-  div.appendChild(trail);
+  div.appendChild(activity);
   div.appendChild(body);
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
-  return { div, trail, body };
+  return {
+    div,
+    activity,
+    label: summary.querySelector(".agent-activity-label"),
+    panel,
+    trail,
+    body,
+    pendingSettle: new Map(),
+  };
 }
 
-function upsertAgentStep(trail, ev) {
-  if (!trail || !ev || !ev.id) return;
-  let li = trail.querySelector(`[data-step-id="${ev.id}"]`);
+function setAgentActivityState(run, state, label) {
+  if (!run || !run.activity) return;
+  run.activity.classList.remove("is-running", "is-done", "is-error");
+  run.activity.classList.add(state);
+  if (label && run.label) run.label.textContent = label;
+}
+
+function paintAgentStep(li, ev) {
+  li.replaceChildren();
+  const main = document.createElement("span");
+  main.className = "agent-step-label";
+  main.textContent = ev.label || "";
+  li.appendChild(main);
+  if (ev.summary && ev.summary !== ev.label) {
+    const why = document.createElement("span");
+    why.className = "agent-step-why";
+    why.textContent = ev.summary;
+    li.appendChild(why);
+  }
+  li.classList.remove("is-running", "is-done", "is-error");
+  li.classList.add(ev.status === "error" ? "is-error" : (ev.status === "done" ? "is-done" : "is-running"));
+}
+
+function upsertAgentStep(run, ev) {
+  if (!run || !run.trail || !ev || !ev.id) return;
+  if (ev.id === "think-0") {
+    if (ev.status === "running") {
+      setAgentActivityState(run, "is-running", ev.label || "Planificando pasos…");
+    }
+    return;
+  }
+  let li = run.trail.querySelector(`[data-step-id="${ev.id}"]`);
   if (!li) {
     li = document.createElement("li");
     li.dataset.stepId = ev.id;
-    trail.appendChild(li);
+    run.trail.appendChild(li);
   }
-  if (ev.label) li.textContent = ev.label;
-  li.classList.remove("is-running", "is-done", "is-error");
-  li.classList.add(ev.status === "error" ? "is-error" : (ev.status === "done" ? "is-done" : "is-running"));
+  const applyState = () => paintAgentStep(li, ev);
+  if (ev.status === "running" || prefersReducedMotion()) {
+    li.dataset.startedAt = String(Date.now());
+    applyState();
+    return;
+  }
+  const startedAt = Number(li.dataset.startedAt || 0);
+  const elapsed = startedAt ? Date.now() - startedAt : AGENT_MIN_RUNNING_MS;
+  const remaining = Math.max(0, AGENT_MIN_RUNNING_MS - elapsed);
+  const prev = run.pendingSettle.get(ev.id);
+  if (prev) clearTimeout(prev.timer);
+  let resolve;
+  const promise = new Promise((ok) => { resolve = ok; });
+  const timer = setTimeout(() => {
+    applyState();
+    resolve();
+    run.pendingSettle.delete(ev.id);
+  }, remaining);
+  run.pendingSettle.set(ev.id, { timer, promise });
+}
+
+async function waitAgentSettles(run) {
+  const waits = [...run.pendingSettle.values()].map((row) => row.promise);
+  if (waits.length) await Promise.all(waits);
 }
 
 function renderProposedActions(parent, actions) {
@@ -1302,24 +1383,27 @@ async function requestAgent(message, { replaceLast = false } = {}) {
       throw new Error(chatErrorMessage({ message: detail }));
     }
     let finalEv = null;
+    let streamError = null;
     await readNdjson(res, (ev) => {
-      if (ev.type === "step") upsertAgentStep(run.trail, ev);
+      if (ev.type === "step") upsertAgentStep(run, ev);
       else if (ev.type === "fig" && ev.fig) showCopilotFigure(ev.fig);
       else if (ev.type === "display" && ev.display) {
-        let box = run.div.querySelector(".exec-result");
-        if (!box) {
-          box = document.createElement("div");
-          box.className = "exec-result";
-          run.body.after(box);
-        }
+        const box = document.createElement("div");
+        box.className = "exec-result";
         renderExecResult(box, { display: ev.display });
+        run.panel.appendChild(box);
+        run.activity.open = true;
       } else if (ev.type === "error") {
-        throw new Error(chatErrorMessage({ message: ev.detail }));
+        streamError = new Error(chatErrorMessage({ message: ev.detail }));
       } else if (ev.type === "final") {
         finalEv = ev;
       }
     });
+    await waitAgentSettles(run);
+    if (streamError) throw streamError;
     if (!finalEv) throw new Error(UI_ERR.chat);
+    setAgentActivityState(run, "is-done", "Listo · pasos completados");
+    run.activity.open = false;
     await typeText(run.body, finalEv.content || "");
     (finalEv.code_blocks || []).forEach((code) => appendCodeBlock(run.div, code));
     renderProposedActions(run.div, finalEv.proposed_actions || []);
@@ -1331,6 +1415,23 @@ async function requestAgent(message, { replaceLast = false } = {}) {
     log.scrollTop = log.scrollHeight;
     return run.div;
   } catch (err) {
+    if (isAbortError(err)) {
+      if (run.div.isConnected) run.div.remove();
+      throw err;
+    }
+    const hasTrail = Boolean(run.trail && run.trail.children.length);
+    if (hasTrail && run.div.isConnected) {
+      await waitAgentSettles(run);
+      setAgentActivityState(run, "is-error", "Se detuvo con un error");
+      run.activity.open = true;
+      run.div.classList.add("is-error");
+      run.body.innerHTML = esc(chatErrorMessage(err)).replace(/\n/g, "<br>");
+      addRetryButton(run.div, async () => {
+        run.div.remove();
+        await requestChat(lastChatMessage, { echoUser: false, replaceLast: lastReplaceLast });
+      });
+      return run.div;
+    }
     if (run.div.isConnected) run.div.remove();
     throw err;
   }
@@ -1407,11 +1508,7 @@ function setChatMode(mode) {
     btn.setAttribute("aria-selected", on ? "true" : "false");
   });
   const hint = document.getElementById("chat-mode-hint");
-  if (hint) {
-    hint.textContent = chatMode === "agent"
-      ? "El agente usa herramientas y muestra los pasos. Los cambios al dataset piden confirmación."
-      : "Las tablas de Ejecutar aparecen en el chat. Las gráficas se abren en Visualización (EDA o ML).";
-  }
+  if (hint) hint.innerHTML = chatMode === "agent" ? HINT_AGENT : HINT_ASSIST;
 }
 
 document.getElementById("chat-form").addEventListener("submit", async (ev) => {

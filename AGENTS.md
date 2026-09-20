@@ -42,6 +42,7 @@
   - `security-auditor` — JWT, RLS, uploads, secrets (read-only)
   - `verifier` — confirm claimed work actually works
   - `ui-designer` — distinctive HTML/CSS/JS (no generic SaaS palette)
+  - `copilot-logic` — Gemini tools, agent_loop NDJSON, quota copy, copilot tests
 - Code decisions follow those skills. Do not clone Cursor built-ins (`explore`, `bash`, `browser`).
 
 ---

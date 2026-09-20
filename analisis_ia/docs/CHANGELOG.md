@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-09-19 (Slice 9 — agent chat UX)
+
+### Added
+
+- Optional `summary` on agent tool calls (`inspect_dataset`, `run_python`, `propose_mutations`). `agent_loop` emits it on `step` NDJSON events; UI shows it under the backend `step_label`.
+- Collapsible **activity panel** in Agente mode: “Planificando pasos…” with a running spinner, trail + intermediate tables inside the panel, final text and Aplicar actions in the bubble body. Minimum 320ms visible running state.
+- Design replay at `/static/dev/agent-chat-demo.html` (happy path, step error, quota) with no Gemini calls.
+- Cursor subagent `copilot-logic` for copilot/tool-loop work.
+
+### Changed
+
+- Quota copy is **“Se superó el límite de consultas”** (`MSG_TOKENS`, `UI_ERR.tokens`).
+- Asistente / Agente `#chat-mode-hint` texts match the Slice 9 product copy.
+- Notebook motion elevated in `app.css` (tabs, dropzone, toasts, activity spinner) without changing the bone / Prussian identity.
+- Think-0 step label is “Planificando pasos…”. Static assets `?v=` bumped to `0.1.4`.
+
+### Tests
+
+- Pytest: 40 passed (`analisis_ia/tests`), including step `summary` present/absent.
+
 ## 2026-08-30 (agent JSON payloads)
 
 ### Fixed

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-MSG_TOKENS = "Se acabaron los tokens"
+MSG_TOKENS = "Se superó el límite de consultas"
 MSG_GENERIC = "Error al generar respuesta"
 
 _TOKEN_MARKERS = (

@@ -58,5 +58,9 @@ Usa herramientas en bucle: inspect_dataset, run_python (solo lectura), propose_m
 - PROHIBIDO: streamlit, os, sys, subprocess, eval, exec, open.
 - Responde al usuario en español, breve y con evidencia de las tools.
 - Al terminar, estructura hallazgos (calidad + recomendación ML + siguientes pasos).
+- Cada vez que llames una tool, incluye también el argumento `summary`: una frase breve
+  en español (≤120 caracteres) que describa qué va a ver el usuario (p. ej. "Revisando
+  nulos y duplicados del dataset."). No hagas una llamada extra a Gemini para esto; va
+  junto con la misma llamada a la tool.
 """
 

@@ -2,9 +2,9 @@
 
 ## Current slice
 
-Slice 8 complete — Copiloto **Agente** mode (tools loop, NDJSON steps, mutation confirm). Post–Slice 8 fixes: strict JSON tool payloads, Gemini `user` role for function results, sandbox single namespace + agent runtime `detail`.
+Slice 9 complete — Agent chat UX (hybrid `summary` + activity panel) and notebook motion pass. Design replay at `/static/dev/agent-chat-demo.html`; production `app.js` paints the same panel. Quota copy is “Se superó el límite de consultas”. Pytest: 40 passed.
 
-**Up next:** Slice 9 — Agent chat UX (documented below; not started).
+**Up next:** Slice 10 — listed below. Chat UX changes are prototyped on `/static/dev/agent-chat-demo.html` before production `app.js`.
 
 ## Completed
 
@@ -62,72 +62,49 @@ Slice 8 complete — Copiloto **Agente** mode (tools loop, NDJSON steps, mutatio
 - Agent tool results (`json_safe` / `inspect_dataset` head) convert pandas/NumPy `NaN` and infinities to JSON `null`. Function responses are sent with role `user` so Gemini 3.x accepts the next turn.
 - Sandbox `exec` uses one namespace so nested functions see `pd`/`df`. Agent `run_python` gets `TypeError: …` (no traceback); **Ejecutar** still shows the generic line. AST rejections stay generic for both.
 
-## Next (Slice 9 — Agent chat UX + design replay)
+### Slice 9
 
-**Goal:** Clearer Agent-mode chat without extra Gemini round-trips per step. Iterate layout on a mock replay page before wiring production `/chat/agent`.
+- Hybrid step copy: backend `step_label` plus optional Gemini `summary` on the same tool call (no extra request). `agent_loop` omits `summary` when missing. Think-0 label is “Planificando pasos…”.
+- Agente bubble: collapsible `.agent-activity` (default collapsed). Running spinner on the summary row; trail + `display` tables inside the panel; final narrative and proposed actions in the bubble body. Min 320ms running so ✓ is not instant.
+- `#chat-mode-hint` Assist/Agent copy from the Slice 9 spec. Quota line is “Se superó el límite de consultas”.
+- Static replay: `app/static/dev/agent-chat-demo.html` (+ JS). Scenarios: happy path, step error, quota.
+- Notebook motion pass in `app.css` (same bone / Prussian identity). `ui-designer` brief updated; new `copilot-logic` subagent.
+- Still out of scope: duplicate column-name detection, persisting vars between `run_python` steps, `AGENT_MOCK=1`.
+- Pytest: 40 passed (`analisis_ia/tests`).
 
-### Hybrid step copy (backend + Gemini)
+## Next (Slice 10 — planned)
 
-| Layer | Owner | Role |
-|-------|--------|------|
-| Step status label | Backend (`step_label`, fixed enums) | Short generic line: “Revisando el dataset…”, “Ejecutando análisis…”, spinner while running |
-| Brief “why” line | Gemini (same tool call, no extra request) | Optional `summary` string on each function call (1 sentence, Spanish, user-facing) |
-| Final answer | Gemini (`final` event) | Full narrative after the loop |
+Chat items **1–2** iterate on the demo page first, then merge into production. Tools/ingest items **3–5** can land on the live app.
 
-**Backend changes (planned):**
+### 1. Agent `display` tables in the bubble (not inside the activity panel)
 
-- Add optional `summary` to `TOOL_SPECS` for `inspect_dataset`, `run_python`, `propose_mutations` (max ~120 chars in schema description).
-- Extend `AGENT_PROMPT`: ask for a brief `summary` per tool call explaining what the user will see.
-- `agent_loop`: emit `summary` on `step` NDJSON events when present; fall back to `step_label` only.
-- Do **not** parse generated Python for labels (keep backend generic).
+Today intermediate `.exec-result` tables sit in `.agent-activity-body` (the collapsible trail). Keep the step list + summaries in that panel. Move **tables / query results** into the main `.bubble.assistant.agent-run` body, next to the final narrative (they are part of what the user should see, not only activity).
 
-**UI changes (planned):**
+- First: `app/static/dev/agent-chat-demo.html` (+ `agent-chat-demo.js`).
+- Then: the same layout in production `app.js`.
 
-- Collapsible **activity panel** inside the agent bubble (default: collapsed summary row).
-  - Summary row while waiting on Gemini: **“Planificando pasos…”** + visible running animation (not only `✓`).
-  - Expanded: step trail with `is-running` spinner; intermediate artifacts live here.
-- **Intermediate vs final:** `display` tables and small previews inside the panel; **final** text + proposed actions stay in the main bubble body (typewriter).
-- Fix perceived “instant ✓”: ensure running state is visible (CSS animation, optional min display time for fast tools).
+### 2. Model picker + own API key (settings)
 
-### Chat copy (`#chat-mode-hint`, quota error)
+`#chat-model` (or a settings control next to it) must choose among providers, not only Gemini.
 
-**Assist hint (planned):**
+- **Three slots for now** (Gemini + two TBD; Jona will confirm which). Built-in vs “use my key”.
+- Settings: floating panel or gear. User can paste an API key in the UI and pick that model for chat.
+- **Auto fallback:** if the current model hits the query/quota limit, switch to the next configured model.
+- Secrets stay out of source; do not log keys. Demo the picker chrome on `agent-chat-demo.html` before wiring real providers.
 
-> Recomendado para tareas concretas: pide código y ejecútalo con **Ejecutar**. Las tablas aparecen en el chat; las gráficas en Visualización (EDA o ML).
+### 3. Plot / correlation errors → clean data first
 
-**Agent hint (planned):**
+When histogram, boxplot, correlation, or similar viz fails (example already seen: `GET /eda/correlation` → `TypeError: imshow() got an unexpected keyword argument 'autosize'`), the UI must not dump a 500. Show a short Spanish line: clean the dataset first, then retry the chart. Keep the traceback in the server log.
 
-> Recomendado para diagnosticar el dataset (calidad, patrones, siguientes pasos). Usa más consultas a la IA; el límite diario puede agotarse antes. Los cambios al dataset piden confirmación.
+### 4. Ingest `.tech-details` visual polish
 
-**Quota message (planned):** replace “Se acabaron los tokens” with **“Se superó el límite de consultas”** in `app/services/copilot/errors.py` (`MSG_TOKENS`), `app/static/js/app.js` (`UI_ERR.tokens`), and tests.
+`details.tech-details` (file name, encoding, separator) looks too bare. Restyle it in the notebook identity (same palette; not a new brand).
 
-### Design sandbox (no Gemini)
+### 5. Database connection (ingest)
 
-Static replay for layout/CSS iteration without burning API quota:
+Add a database connection area: either a block on the **Ingesta** panel or a dedicated subsection/tab. Prototype UX on the live ingest screen (not the chat demo). Engine/host details TBD with Jona.
 
-- `analisis_ia/app/static/dev/agent-chat-demo.html` (+ JS) reusing `app.css` chat styles.
-- Replays canned NDJSON sequences (`step`, `display`, `fig`, `final`, `error`) with artificial delays.
-- Scenarios: happy path (inspect → table → final), step error, quota error.
-- Optional later: `AGENT_MOCK=1` on `/chat/agent` — prefer static page first.
-- Merge into production `app.js` only after visual sign-off.
-
-### Out of scope (Slice 9)
-
-- Duplicate column-name detection in EDA ingest.
-- Persisting variables between `run_python` calls across steps (`df_c` in a later step).
-- Extra Gemini call per step only for explanations.
-
-### Files (expected touch)
-
-- `app/services/copilot/tools.py` — `summary` in tool specs
-- `app/services/copilot/prompts.py` — `AGENT_PROMPT`
-- `app/services/copilot/agent_loop.py` — `step.summary` in events
-- `app/static/js/app.js`, `app/static/css/app.css` — activity panel, hints
-- `app/templates/index.html` — default hint text if not JS-only
-- `app/services/copilot/errors.py`, tests — quota copy
-- `app/static/dev/agent-chat-demo.html` — design replay
-
-## Next (product, after Slice 9)
+## Later (after Slice 10)
 
 - Supabase Auth, Postgres, Storage (replace in-memory sessions).
 - Persist trained models; richer ML (CV, predict on new rows).

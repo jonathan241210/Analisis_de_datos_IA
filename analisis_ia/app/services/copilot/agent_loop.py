@@ -30,6 +30,16 @@ async def _default_ask(contents: list[dict[str, Any]]) -> ModelTurn:
     return await generate_with_tools(AGENT_PROMPT, contents)
 
 
+def _tool_summary(args: dict[str, Any], limit: int = 120) -> str:
+    raw = args.get("summary")
+    if not isinstance(raw, str):
+        return ""
+    text = raw.strip()
+    if not text:
+        return ""
+    return text[:limit]
+
+
 async def run_agent_loop(
     df: DataFrame,
     user_query: str,
@@ -44,13 +54,13 @@ async def run_agent_loop(
     step_i = 0
     last_text = ""
 
-    yield {"type": "step", "id": "think-0", "label": "Estructurando hallazgos…", "status": "running"}
+    yield {"type": "step", "id": "think-0", "label": "Planificando pasos…", "status": "running"}
 
     for _ in range(max(1, settings.agent_max_steps)):
         turn = await ask_fn(contents)
         last_text = turn.text or last_text
         if not turn.calls:
-            yield {"type": "step", "id": "think-0", "label": "Estructurando hallazgos…", "status": "done"}
+            yield {"type": "step", "id": "think-0", "label": "Planificando pasos…", "status": "done"}
             yield {
                 "type": "final",
                 "content": last_text or "Listo.",
@@ -59,7 +69,7 @@ async def run_agent_loop(
             }
             return
 
-        yield {"type": "step", "id": "think-0", "label": "Estructurando hallazgos…", "status": "done"}
+        yield {"type": "step", "id": "think-0", "label": "Planificando pasos…", "status": "done"}
 
         model_item: dict[str, Any] = {
             "role": "model",
@@ -75,7 +85,11 @@ async def run_agent_loop(
             name = str(call.get("name") or "")
             args = call.get("args") or {}
             label = step_label(name, args)
-            yield {"type": "step", "id": sid, "label": label, "status": "running"}
+            summary = _tool_summary(args)
+            running_step: dict[str, Any] = {"type": "step", "id": sid, "label": label, "status": "running"}
+            if summary:
+                running_step["summary"] = summary
+            yield running_step
             payload, extra = dispatch_tool(df, name, args)
             if extra.get("proposed_actions"):
                 proposed.extend(extra["proposed_actions"])
@@ -86,17 +100,20 @@ async def run_agent_loop(
             ok = "error" not in payload or payload.get("success") is True
             if name == "run_python":
                 ok = bool(payload.get("success"))
-            yield {
+            done_step: dict[str, Any] = {
                 "type": "step",
                 "id": sid,
                 "label": label.rstrip("…"),
                 "status": "done" if ok or name == "propose_mutations" else "error",
             }
+            if summary:
+                done_step["summary"] = summary
+            yield done_step
             tool_results.append({"name": name, "response": {"result": payload}})
         contents.append({"role": "tool", "results": tool_results})
-        yield {"type": "step", "id": "think-0", "label": "Estructurando hallazgos…", "status": "running"}
+        yield {"type": "step", "id": "think-0", "label": "Planificando pasos…", "status": "running"}
 
-    yield {"type": "step", "id": "think-0", "label": "Estructurando hallazgos…", "status": "done"}
+    yield {"type": "step", "id": "think-0", "label": "Planificando pasos…", "status": "done"}
     yield {
         "type": "final",
         "content": last_text or "Alcancé el límite de pasos. Revisa el avance y vuelve a preguntar si hace falta.",
