@@ -26,6 +26,13 @@
   --press-sm: 1px 1px 0 var(--ink);
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
   --pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --prop-accent: var(--red);
+  --prop-surface: var(--sheet);
+  --prop-ink: var(--ink);
+  --prop-mute: var(--mute);
+  --prop-line: var(--rule);
+  --prop-ok: var(--ok);
 }
 
 * { box-sizing: border-box; }
@@ -1331,7 +1338,7 @@ tr:hover td, tr:hover td:first-child { background: rgba(180, 35, 24, 0.09); }
 @media (max-width: 1100px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) 12px minmax(240px, 40vh);
+    grid-template-rows: minmax(0, 1fr) 12px minmax(240px, var(--chat-h, 40vh));
   }
   .workspace.is-collapsed { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) 0 46px; }
   .splitter { cursor: row-resize; }

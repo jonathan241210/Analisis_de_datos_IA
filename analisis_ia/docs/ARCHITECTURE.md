@@ -27,6 +27,7 @@ analisis_ia/
     ├── templates/           index.html (module tabs + inner subtabs + right chat)
     └── static/              css/app.css (100dvh light notebook), js/app.js (DnD, subtabs, agent activity, model settings)
                              static/dev/agent-chat-demo.html — Slice 10 replay (tables in bubble, model chrome, no Gemini)
+                             static/dev/proposals/ — four design editions (gallery + simulated app); not production UI
 ```
 
 ### MVC mapping

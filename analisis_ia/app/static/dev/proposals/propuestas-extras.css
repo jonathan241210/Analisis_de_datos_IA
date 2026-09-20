@@ -1,0 +1,142 @@
+/* Shared chrome for design-proposal pages. Loaded after one tema-*.css.
+   Uses --prop-* aliases declared on each theme. Not for production. */
+
+.prop-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.85rem;
+  margin-left: auto;
+  font-family: var(--sans, sans-serif);
+  letter-spacing: 0.08em;
+  opacity: 1;
+}
+.prop-banner > .prop-switch { opacity: 1; }
+.prop-switch a {
+  opacity: 0.72;
+  border-bottom-style: dotted;
+}
+.prop-switch a.is-current {
+  opacity: 1;
+  font-weight: 600;
+  border-bottom-style: solid;
+}
+
+.settings-pop-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+.settings-pop-head h3 { font-size: 1.05rem; margin: 0; }
+.llm-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.7rem;
+}
+.llm-slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+.llm-slot-pick {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--prop-ink);
+  font-weight: 600;
+  font-size: 0.92rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.llm-slot-pick input {
+  min-height: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--prop-accent);
+  box-shadow: none;
+  padding: 0;
+}
+.llm-ready,
+.llm-missing {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+}
+.llm-ready { color: var(--prop-ok); background: color-mix(in srgb, var(--prop-ok) 14%, transparent); }
+.llm-missing { color: var(--prop-mute); background: color-mix(in srgb, var(--prop-line) 35%, transparent); }
+.llm-key-mode {
+  border: 0;
+  margin: 0.45rem 0 0.35rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.85rem;
+}
+.llm-key-mode legend {
+  font-size: 0.78rem;
+  color: var(--prop-mute);
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 0.2rem;
+}
+.llm-key-mode label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--prop-ink);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.llm-key-mode input {
+  min-height: 0;
+  width: 0.95rem;
+  height: 0.95rem;
+  padding: 0;
+  box-shadow: none;
+  accent-color: var(--prop-accent);
+}
+.settings-pop-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+.llm-slot label { margin-top: 0.35rem; }
+.llm-slot input[type="password"],
+.llm-slot .llm-model { width: 100%; min-height: 2.4rem; }
+
+.agent-proposals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+.agent-proposals button { min-height: 2rem; font-size: 0.78rem; }
+
+.thinking-label { font-size: 1rem; }
+
+.sim-empty {
+  margin: 0.8rem 0;
+  padding: 0.85rem 1rem;
+  color: var(--prop-mute);
+  font-family: var(--serif, Georgia, serif);
+  font-style: italic;
+  border: 1px dashed var(--prop-line);
+}
+
+.drop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.7rem 0 0;
+}

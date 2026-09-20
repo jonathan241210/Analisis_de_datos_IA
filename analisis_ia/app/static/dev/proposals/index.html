@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>Propuestas de diseño · analisis_ia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./galeria.css" />
+</head>
+<body>
+  <header class="mast">
+    <p class="mast-kicker">sandbox · no es producción</p>
+    <h1>Cuatro ediciones del cuaderno</h1>
+    <p class="lede">
+      Mismas pestañas que la app real — Ingesta, Análisis descriptivo, Limpieza, Machine Learning y el copiloto —
+      con color, ritmo y distribución distintos. Entra a una, sube un archivo (o el demo) y recorre el flujo.
+      La identidad de producción (hueso / Prusia) no cambia hasta que elijas una.
+    </p>
+    <nav class="mast-nav">
+      <a href="/static/dev/agent-chat-demo.html">Sandbox del chat (slice 10)</a>
+      <a href="#brechas">Qué falta en el producto</a>
+    </nav>
+  </header>
+
+  <div class="folio">
+    <a class="issue gaceta" href="./app.html?tema=gaceta">
+      <div class="issue-cover" aria-hidden="true">
+        <div class="mini">
+          <div class="mini-top"><span class="mini-title">analisis_ia</span><span>72 × 6</span></div>
+          <div class="mini-tabs">
+            <span class="mini-tab on">Ingesta</span><span class="mini-tab">EDA</span><span class="mini-tab">Limpieza</span><span class="mini-tab">ML</span>
+          </div>
+          <div class="mini-board"><div class="mini-tools"></div><div class="mini-chat"></div></div>
+        </div>
+      </div>
+      <div class="issue-meta">
+        <p class="num">Edición I · diurna</p>
+        <h2>Gaceta</h2>
+        <p>Gaceta estadística: papel de periódico, filetes bermellón, sombra de imprenta. Tabs de titular; el chat es la sección de cartas.</p>
+        <span class="cta">Abrir simulación →</span>
+      </div>
+    </a>
+
+    <a class="issue observatorio" href="./app.html?tema=observatorio">
+      <div class="issue-cover" aria-hidden="true">
+        <div class="mini">
+          <div class="mini-top"><span class="mini-title">analisis_ia</span><span>72 × 6</span></div>
+          <div class="mini-tabs">
+            <span class="mini-tab on">Ingesta</span><span class="mini-tab">EDA</span><span class="mini-tab">Limpieza</span><span class="mini-tab">ML</span>
+          </div>
+          <div class="mini-board"><div class="mini-tools"></div><div class="mini-chat"></div></div>
+        </div>
+      </div>
+      <div class="issue-meta">
+        <p class="num">Edición II · nocturna</p>
+        <h2>Observatorio</h2>
+        <p>Carta náutica a medianoche: retícula, cobre, papeles claros para las tablas. Un acento, sin neón. Chat como bitácora de puente.</p>
+        <span class="cta">Abrir simulación →</span>
+      </div>
+    </a>
+
+    <a class="issue atelier" href="./app.html?tema=atelier">
+      <div class="issue-cover" aria-hidden="true">
+        <div class="mini">
+          <div class="mini-top"><span class="mini-title">analisis_ia</span><span>lám. 01</span></div>
+          <div class="mini-tabs">
+            <span class="mini-tab on">Ingesta</span><span class="mini-tab">EDA</span><span class="mini-tab">Limpieza</span><span class="mini-tab">ML</span>
+          </div>
+          <div class="mini-board"><div class="mini-tools"></div><div class="mini-chat"></div></div>
+        </div>
+      </div>
+      <div class="issue-meta">
+        <p class="num">Edición III · estudio</p>
+        <h2>Atelier</h2>
+        <p>Mesa de arquitecto: lino, grafito, cian de plano y retícula de 8 px. Las pestañas viven en un rail vertical a la izquierda.</p>
+        <span class="cta">Abrir simulación →</span>
+      </div>
+    </a>
+
+    <a class="issue herbario" href="./app.html?tema=herbario">
+      <div class="issue-cover" aria-hidden="true">
+        <div class="mini">
+          <div class="mini-top"><span class="mini-title">analisis_ia</span><span>espécimen</span></div>
+          <div class="mini-tabs">
+            <span class="mini-tab on">Ingesta</span><span class="mini-tab">EDA</span><span class="mini-tab">Limpieza</span><span class="mini-tab">ML</span>
+          </div>
+          <div class="mini-board"><div class="mini-tools"></div><div class="mini-chat"></div></div>
+        </div>
+      </div>
+      <div class="issue-meta">
+        <p class="num">Edición IV · campo</p>
+        <h2>Herbario</h2>
+        <p>Cuaderno botánico: papel salvia, tinta musgo, herrumbre de etiqueta. Tabs tipo ficha de herbario; el chat lleva costura de lomo.</p>
+        <span class="cta">Abrir simulación →</span>
+      </div>
+    </a>
+  </div>
+
+  <section class="gaps" id="brechas">
+    <header>
+      <h2>Qué falta aún (no implementado)</h2>
+      <p class="note">
+        Comparé el producto actual con Julius, Hex y cuadernos tipo Observable / DataPlay.
+        Esto es un informe, no un plan de trabajo: nada de esta lista se ha construido.
+        Elige qué entra al siguiente slice.
+      </p>
+    </header>
+    <ol>
+      <li>
+        <strong>Fuentes vivas</strong>
+        <span>SQL real (Postgres / MySQL / warehouses), Google Sheets y Drive. Hoy el formulario de BD responde 501 y solo hay CSV/TSV/Excel.</span>
+      </li>
+      <li>
+        <strong>Más formatos</strong>
+        <span>JSON, Parquet, PDF tabular, URLs y datasets de ejemplo empaquetados. Julius ya acepta PDF y Sheets.</span>
+      </li>
+      <li>
+        <strong>Visualización más rica</strong>
+        <span>Scatter, series temporales, violin, pairplot, mapas. Ahora: histograma, boxplot y correlación.</span>
+      </li>
+      <li>
+        <strong>Estadística inferencial</strong>
+        <span>t-test, chi-cuadrado, ANOVA y tests de normalidad, no solo descriptivos.</span>
+      </li>
+      <li>
+        <strong>Operaciones de outliers y joins</strong>
+        <span>Tratar extremos (winsor, recorte) y unir varios archivos. El agente detecta outliers; no hay botón para tratarlos ni fusionar tablas.</span>
+      </li>
+      <li>
+        <strong>Pipeline reproducible</strong>
+        <span>Exportar el historial de limpieza como script / notebook reejecutable (el fuerte de Julius y Hex).</span>
+      </li>
+      <li>
+        <strong>ML de verdad de producto</strong>
+        <span>Validación cruzada, predicción sobre filas nuevas, persistir el modelo, forecasting. Hoy se entrena en sesión y se pierde.</span>
+      </li>
+      <li>
+        <strong>Memoria del sandbox</strong>
+        <span>Variables entre pasos de <code>run_python</code>, detección de columnas duplicadas, informes PDF / slides.</span>
+      </li>
+      <li>
+        <strong>Cuentas y proyectos</strong>
+        <span>Auth, trabajo en equipo, historial de sesiones y programación de corridas. Las sesiones siguen en memoria.</span>
+      </li>
+      <li>
+        <strong>Explicabilidad</strong>
+        <span>Importancia de variables / SHAP, diccionario de columnas y un modo oscuro de producción (Observatorio es solo propuesta).</span>
+      </li>
+    </ol>
+  </section>
+
+  <p class="colophon">analisis_ia · propuestas estáticas · /static/dev/proposals/</p>
+</body>
+</html>

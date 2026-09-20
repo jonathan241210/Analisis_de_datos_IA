@@ -1,0 +1,286 @@
+/* Gallery of design proposals. Independent of production app.css. */
+
+:root {
+  --ink: #1a1712;
+  --mute: #6a6358;
+  --paper: #f3ece0;
+  --sheet: #fffaf2;
+  --rule: #cfc3ae;
+  --serif: "Newsreader", "Source Serif 4", Georgia, serif;
+  --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--sans);
+  background:
+    radial-gradient(rgba(26, 23, 18, 0.05) 0.6px, transparent 0.7px),
+    linear-gradient(180deg, #efe6d4 0%, var(--paper) 18%, #e7dcc8 100%);
+  background-size: 11px 11px, auto;
+  min-height: 100dvh;
+}
+::selection { background: rgba(180, 35, 24, 0.2); }
+a { color: inherit; }
+
+.mast {
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 0.4rem;
+}
+.mast-kicker {
+  margin: 0 0 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #b42318;
+}
+.mast h1 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  margin: 0 0 0.7rem;
+}
+.mast .lede {
+  max-width: 62ch;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.18rem;
+  line-height: 1.45;
+  color: #3d372e;
+  margin: 0 0 1.1rem;
+}
+.mast-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1.1rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.mast-nav a {
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+.mast-nav a:hover { color: #b42318; }
+
+.folio {
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 1.4rem 1.4rem 4rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.15rem;
+}
+
+.issue {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 28rem;
+  text-decoration: none;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 0.28s var(--ease), box-shadow 0.28s var(--ease);
+}
+.issue:hover { transform: translateY(-4px); }
+.issue:focus-visible { outline: 2px solid #b42318; outline-offset: 4px; }
+
+.issue-cover {
+  flex: 1;
+  min-height: 13.5rem;
+  position: relative;
+  padding: 1.1rem 1.15rem 1.2rem;
+}
+.issue-meta {
+  padding: 1.05rem 1.15rem 1.2rem;
+  background: var(--sheet);
+  border-top: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.issue-meta .num {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin: 0 0 0.25rem;
+  opacity: 0.7;
+}
+.issue-meta h2 {
+  font-family: var(--serif);
+  font-size: 1.55rem;
+  margin: 0 0 0.3rem;
+  letter-spacing: -0.02em;
+}
+.issue-meta p {
+  margin: 0;
+  color: var(--mute);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.issue-meta .cta {
+  display: inline-block;
+  margin-top: 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Mini shells painted in CSS — not screenshots. */
+.mini {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 0.45rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+}
+.mini-top { display: flex; justify-content: space-between; align-items: flex-end; }
+.mini-title { font-family: var(--serif); font-size: 1.05rem; letter-spacing: -0.02em; }
+.mini-tabs { display: flex; gap: 0.35rem; }
+.mini-tab { padding: 0.22rem 0.45rem; opacity: 0.7; }
+.mini-tab.on { opacity: 1; }
+.mini-board {
+  display: grid;
+  grid-template-columns: 1fr 0.42fr;
+  gap: 0.4rem;
+  min-height: 0;
+}
+.mini-tools, .mini-chat { min-height: 7.5rem; }
+
+.issue.gaceta { border: 1px solid #14110e; box-shadow: 5px 5px 0 #14110e; }
+.issue.gaceta .issue-cover {
+  background:
+    repeating-linear-gradient(0deg, rgba(20, 17, 14, 0.04) 0 1px, transparent 1px 3px),
+    #f3ead6;
+  color: #14110e;
+}
+.issue.gaceta .mini-tab { border-bottom: 1px solid transparent; }
+.issue.gaceta .mini-tab.on { border-bottom: 3px solid #b42318; color: #b42318; }
+.issue.gaceta .mini-tools { background: #fffaf1; border: 1px solid #14110e; border-top: 4px solid #14110e; }
+.issue.gaceta .mini-chat { background: #ece0c6; border: 1px solid #14110e; }
+.issue.gaceta .cta { color: #b42318; }
+
+.issue.observatorio { border: 1px solid #2a394c; box-shadow: 0 18px 40px rgba(8, 12, 18, 0.35); }
+.issue.observatorio .issue-cover {
+  background:
+    linear-gradient(rgba(139, 155, 173, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 155, 173, 0.1) 1px, transparent 1px),
+    #0e1520;
+  background-size: 28px 28px, 28px 28px, auto;
+  color: #dbe3ec;
+}
+.issue.observatorio .issue-meta { background: #16202e; color: #dbe3ec; border-top-color: #2a394c; }
+.issue.observatorio .issue-meta p { color: #8b9bad; }
+.issue.observatorio .mini-tab { border: 1px solid #2a394c; border-radius: 2px; }
+.issue.observatorio .mini-tab.on { border-color: #c47a3a; color: #c47a3a; }
+.issue.observatorio .mini-tools { background: #e8e0d0; color: #1a1f26; border: 1px solid #c47a3a; }
+.issue.observatorio .mini-chat { background: #16202e; border: 1px solid #2a394c; }
+.issue.observatorio .cta { color: #c47a3a; }
+
+.issue.atelier { border: 1px solid #2c2a26; box-shadow: 4px 4px 0 rgba(42, 111, 151, 0.35); }
+.issue.atelier .issue-cover {
+  background:
+    linear-gradient(rgba(44, 42, 38, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(44, 42, 38, 0.07) 1px, transparent 1px),
+    #e7e2d6;
+  background-size: 8px 8px;
+  color: #2c2a26;
+}
+.issue.atelier .mini { grid-template-columns: 2.6rem 1fr; grid-template-rows: auto 1fr; }
+.issue.atelier .mini-top { grid-column: 1 / -1; }
+.issue.atelier .mini-tabs { flex-direction: column; }
+.issue.atelier .mini-board { grid-column: 2; grid-template-columns: 1fr 0.4fr; }
+.issue.atelier .mini-tab { border-left: 3px solid #c9c2b2; background: #f6f3ea; }
+.issue.atelier .mini-tab.on { border-left-color: #2a6f97; color: #1f5473; }
+.issue.atelier .mini-tools { background: #fdfbf5; border: 1px solid #2c2a26; }
+.issue.atelier .mini-chat { background: #f6f3ea; border: 1px dashed #2a6f97; }
+.issue.atelier .cta { color: #2a6f97; }
+
+.issue.herbario { border: 1px solid #cdd7c8; border-radius: 4px 18px 4px 4px; box-shadow: 0 10px 28px rgba(42, 47, 42, 0.1); }
+.issue.herbario .issue-cover {
+  background:
+    repeating-linear-gradient(90deg, rgba(61, 92, 69, 0.05) 0 1px, transparent 1px 6px),
+    #e7eee4;
+  color: #2d4534;
+}
+.issue.herbario .mini-tab { background: #fbf7ee; border: 1px solid #cdd7c8; border-radius: 2px 2px 0 0; }
+.issue.herbario .mini-tab.on { border-color: #3d5c45; box-shadow: inset 0 -2px 0 #8c4a32; }
+.issue.herbario .mini-tools { background: #fbf7ee; border: 1px solid #cdd7c8; border-radius: 8px; }
+.issue.herbario .mini-chat { background: #f3ecdd; border-left: 4px double #b99a63; }
+.issue.herbario .cta { color: #8c4a32; }
+
+.gaps {
+  max-width: 78rem;
+  margin: 0 auto 3.5rem;
+  padding: 0 1.4rem;
+}
+.gaps header h2 {
+  font-family: var(--serif);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  margin: 0 0 0.4rem;
+}
+.gaps .note {
+  font-family: var(--serif);
+  font-style: italic;
+  color: #3d372e;
+  max-width: 70ch;
+  margin: 0 0 1.2rem;
+}
+.gaps ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 1.1rem;
+  counter-reset: gap;
+}
+.gaps li {
+  counter-increment: gap;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  padding: 0.85rem 1rem 0.95rem;
+}
+.gaps li::before {
+  content: counter(gap, decimal-leading-zero);
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: #b42318;
+  margin-bottom: 0.25rem;
+}
+.gaps li strong { display: block; font-family: var(--serif); font-size: 1.05rem; margin-bottom: 0.2rem; }
+.gaps li span { color: var(--mute); font-size: 0.88rem; line-height: 1.4; }
+
+.colophon {
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 0 1.4rem 2.5rem;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+@media (max-width: 860px) {
+  .folio, .gaps ol { grid-template-columns: 1fr; }
+  .issue { min-height: 22rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .issue { transition: none; }
+  .issue:hover { transform: none; }
+}
