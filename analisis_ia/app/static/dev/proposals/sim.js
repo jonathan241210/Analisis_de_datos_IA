@@ -338,8 +338,23 @@
     fillPicker(document.getElementById("hist-col"), nums.length ? nums : cols);
     fillSelect(document.getElementById("rename-old"), cols);
     fillSelect(document.getElementById("ml-target"), cols);
+    const tgt = document.getElementById("ml-target");
+    if ([...tgt.options].some((o) => o.value === "categoria")) tgt.value = "categoria";
     fillSelect(document.getElementById("eda-cat-sel"), ["", ...cats]);
+    checkPicker("hist-col", nums.slice(0, 1));
+    checkPicker("box-cols", nums.slice(0, 2));
+    checkPicker("ml-features", nums.filter((c) => c !== tgt.value));
+    checkPicker("ml-unsup-feats", nums);
+    checkPicker("impute-cols", nums.filter((c) => countNulls(preview.allRows, c) > 0));
     fillAlgos();
+  }
+
+  function checkPicker(id, values) {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const set = new Set(values);
+    root.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = set.has(cb.value); });
+    renderChips(root);
   }
 
   function fillAlgos() {

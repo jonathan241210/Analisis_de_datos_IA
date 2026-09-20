@@ -1,6 +1,8 @@
 /* Shared chrome for design-proposal pages. Loaded after one tema-*.css.
    Uses --prop-* aliases declared on each theme. Not for production. */
 
+[hidden] { display: none !important; }
+
 .prop-switch {
   display: flex;
   flex-wrap: wrap;
@@ -139,4 +141,20 @@
   align-items: center;
   gap: 0.55rem;
   margin: 0.7rem 0 0;
+}
+
+.tools {
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 720px) {
+  .prop-banner {
+    flex-wrap: wrap;
+    gap: 0.35rem 0.7rem;
+  }
+  .prop-banner #prop-kicker { display: none; }
+  .prop-banner > .prop-switch {
+    margin-left: 0;
+    width: 100%;
+  }
 }
