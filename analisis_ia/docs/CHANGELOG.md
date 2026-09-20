@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-20 (design proposals — static sandbox)
+
+### Added
+
+- Four self-contained theme stylesheets under `app/static/dev/proposals/` (Gaceta, Observatorio, Atelier, Herbario). Not wired into production `app.css`.
+- Gallery `index.html` + simulated notebook `app.html` + `sim.js` (upload, EDA, wrangling, ML, Assist/Agent chat) with no API calls.
+- Link to the gallery from `agent-chat-demo.html`.
+- `docs/FEATURE_GAPS.md`: competitor gap list. Nothing from that list was built.
+
+### Notes
+
+- Atelier uses a vertical tab rail; Observatorio is the only dark proposal. All four honor `prefers-reduced-motion`.
+
 ## 2026-09-20 (Slice 10 — tables, models, ingest)
 
 ### Added

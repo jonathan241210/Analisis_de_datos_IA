@@ -62,6 +62,7 @@
     .demo-scenario-btn:hover { background: rgba(30, 58, 95, 0.06); }
     .demo-scenario-btn:active { transform: scale(0.99); }
     .demo-scenario-btn small { color: var(--mute); font-weight: 400; font-size: 0.8rem; }
+    a.demo-scenario-btn { text-decoration: none; color: var(--ink); }
     .demo-scenario-btn.is-active {
       border-left-color: var(--ok);
       background: rgba(47, 107, 79, 0.06);
@@ -121,6 +122,13 @@
         Casos de uso sin Gemini. Elige uno: verás “Planificando pasos…”, tools,
         <strong>tablas en el cuerpo de la burbuja</strong> y el panel de modelos.
       </p>
+      <p class="demo-group">Propuestas de interfaz</p>
+      <div class="demo-scenarios">
+        <a class="demo-scenario-btn" href="/static/dev/proposals/index.html">
+          Cuatro ediciones
+          <small>Gaceta, Observatorio, Atelier y Herbario · misma app, otro diseño. Ingesta → EDA → limpieza → ML → chat.</small>
+        </a>
+      </div>
       <p class="demo-group">Modo Agente</p>
       <div class="demo-scenarios" role="group" aria-label="Escenarios de agente">
         <button type="button" class="demo-scenario-btn is-active" data-scenario="audit">

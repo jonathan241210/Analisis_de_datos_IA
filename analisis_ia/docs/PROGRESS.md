@@ -2,11 +2,19 @@
 
 ## Current slice
 
-Slice 10 complete — Agent `display` tables in the bubble body, copiloto model slots (Gemini / OpenAI / Anthropic) with optional user keys and quota fallback, plot errors that ask to clean first, notebook polish on ingest `.tech-details`, and a database-connect prototype on Ingesta. Pytest: 52 passed.
+Design proposals (static sandbox) — four alternate UIs next to `agent-chat-demo`, simulating ingest → EDA → clean → ML → chat. Production identity (bone / Prussian) is unchanged. Product features from the gap list were **not** implemented.
 
-**Up next:** persistence (Supabase Auth / Postgres / Storage), a real SQL ingest once engine/host are confirmed, and richer ML.
+**Up next:** Jona picks a visual edition (Gaceta / Observatorio / Atelier / Herbario) and/or items from `docs/FEATURE_GAPS.md`. Persistence (Supabase) and a real SQL ingest remain later.
 
 ## Completed
+
+### Design proposals (2026-09-20)
+
+- Gallery at `/static/dev/proposals/index.html`.
+- Simulated app at `/static/dev/proposals/app.html?tema=gaceta|observatorio|atelier|herbario`.
+- Themes: Gaceta (newsprint / vermilion), Observatorio (night chart / copper), Atelier (drafting rail / cyan), Herbario (field notebook / moss).
+- Link from `/static/dev/agent-chat-demo.html`.
+- Feature-gap write-up in `docs/FEATURE_GAPS.md` (research only).
 
 ### Slice 1
 
