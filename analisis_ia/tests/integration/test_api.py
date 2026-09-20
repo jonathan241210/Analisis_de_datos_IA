@@ -164,6 +164,31 @@ def test_agent_stream_scripted(monkeypatch):
     assert "Hay duplicados" in raw
 
 
+def test_agent_stream_emits_fallback(monkeypatch):
+    from app.services.copilot.gemini_client import ModelTurn
+
+    fallback = {
+        "from_id": "gemini",
+        "from_label": "Google Gemini",
+        "to_id": "openai",
+        "to_label": "OpenAI",
+        "to_model": "gpt-4o-mini",
+    }
+
+    async def fake_tools(_session, _system, _contents):
+        return ModelTurn(text="Auditoría hecha con OpenAI."), fallback
+
+    monkeypatch.setattr("app.api.v1.chat.generate_with_tools_routed", fake_tools)
+    files = {"file": ("demo.csv", b"a,b\n1,2\n", "text/csv")}
+    assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
+    with client.stream("POST", "/api/v1/chat/agent", json={"message": "analiza", "tab": "eda"}) as res:
+        assert res.status_code == 200
+        raw = b"".join(res.iter_bytes()).decode("utf-8")
+    assert '"type": "fallback"' in raw or '"type":"fallback"' in raw
+    assert "openai" in raw.lower()
+    assert "Auditoría hecha con OpenAI" in raw
+
+
 def test_chat_token_error(monkeypatch):
     from app.services.copilot.errors import MSG_TOKENS
     from app.services.copilot.gemini_client import GeminiUnavailable
@@ -199,6 +224,28 @@ def test_correlation_ok_and_unexpected_is_clean(monkeypatch):
     assert "autosize" not in detail
     assert "TypeError" not in detail
     assert "Traceback" not in detail
+
+
+def test_histogram_boxplot_unexpected_is_clean(monkeypatch):
+    from app.core.exceptions import MSG_PLOT_CLEAN
+
+    files = {"file": ("demo.csv", b"a,b\n1,2\n3,4\n5,6\n", "text/csv")}
+    assert client.post("/api/v1/datasets/upload", files=files).status_code == 200
+
+    def boom(*_a, **_k):
+        raise TypeError("unexpected plot failure")
+
+    monkeypatch.setattr("app.api.v1.eda.histogram_spec", boom)
+    hist = client.get("/api/v1/eda/histogram", params={"columns": "a"})
+    assert hist.status_code == 400
+    assert hist.json()["detail"] == MSG_PLOT_CLEAN
+    assert "TypeError" not in hist.json()["detail"]
+
+    monkeypatch.setattr("app.api.v1.eda.boxplot_spec", boom)
+    box = client.get("/api/v1/eda/boxplot", params={"columns": "a"})
+    assert box.status_code == 400
+    assert box.json()["detail"] == MSG_PLOT_CLEAN
+    assert "TypeError" not in box.json()["detail"]
 
 
 def test_db_connect_is_stub():
