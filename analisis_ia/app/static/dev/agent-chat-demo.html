@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>agent-chat-demo · analisis_ia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;1,8..60,400;1,8..60,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    /* Sandbox-only chrome. Nothing here belongs in production app.css. */
+    body.demo {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+      gap: 0.85rem;
+      height: 100dvh;
+      padding: 0.9rem 1rem;
+      overflow: hidden;
+    }
+    .demo-rail {
+      min-width: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding-right: 0.25rem;
+    }
+    .demo-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1rem 1.1rem 1.15rem;
+      box-shadow: var(--inset), var(--shadow);
+    }
+    .demo-card h1 {
+      font-size: 1.25rem;
+      margin-bottom: 0.2rem;
+    }
+    .demo-scenarios {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      margin-top: 0.7rem;
+    }
+    .demo-scenario-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.15rem;
+      text-align: left;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--prussian);
+      min-height: 0;
+      padding: 0.65rem 0.85rem;
+      font-weight: 500;
+    }
+    .demo-scenario-btn:hover { background: rgba(30, 58, 95, 0.06); }
+    .demo-scenario-btn:active { transform: scale(0.99); }
+    .demo-scenario-btn small { color: var(--mute); font-weight: 400; font-size: 0.8rem; }
+    .demo-scenario-btn.is-active {
+      border-left-color: var(--ok);
+      background: rgba(47, 107, 79, 0.06);
+    }
+    .demo-log {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--mute);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 0.6rem 0.7rem;
+      max-height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+    .demo-log:empty::before { content: "El replay de eventos NDJSON aparecerá aquí…"; }
+    .demo-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.6rem;
+    }
+    .demo-controls label {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.82rem;
+    }
+    .demo-controls input[type="range"] { min-height: 0; width: 8rem; }
+    .demo-chat-shell {
+      min-width: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .demo-chat-shell .chat { height: 100%; }
+    .demo-group {
+      margin-top: 0.85rem;
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--prussian);
+      font-weight: 600;
+    }
+    .demo-plot { height: 220px; }
+    .demo-fig { padding-top: 0.35rem; }
+  </style>
+</head>
+<body class="demo">
+  <div class="demo-rail">
+    <div class="demo-card">
+      <p class="eyebrow">sandbox · slice 9</p>
+      <h1>Simulación del copiloto</h1>
+      <p class="lede" style="margin-bottom:0.4rem;">
+        Casos de uso sin Gemini. Elige uno: verás “Planificando pasos…”, tools, tablas,
+        gráfica o la burbuja <em>Pensando</em> del Asistente.
+      </p>
+      <p class="demo-group">Modo Agente</p>
+      <div class="demo-scenarios" role="group" aria-label="Escenarios de agente">
+        <button type="button" class="demo-scenario-btn is-active" data-scenario="audit">
+          Auditoría (varios pasos)
+          <small>Petición vaga → nulos, duplicados, outliers, ML + Aplicar</small>
+        </button>
+        <button type="button" class="demo-scenario-btn" data-scenario="query">
+          Consulta
+          <small>Pregunta concreta → tablas intermedias → respuesta</small>
+        </button>
+        <button type="button" class="demo-scenario-btn" data-scenario="plot">
+          Pedir gráfica
+          <small>Esquema → Graficando… → figura Plotly + nota de Visualización</small>
+        </button>
+        <button type="button" class="demo-scenario-btn" data-scenario="clean">
+          Limpieza con confirmación
+          <small>Propone imputar / quitar duplicados; no muta hasta Aplicar</small>
+        </button>
+        <button type="button" class="demo-scenario-btn" data-scenario="happy">
+          Camino corto
+          <small>Un inspect, una tabla y dos propuestas</small>
+        </button>
+      </div>
+      <p class="demo-group">Modo Asistente</p>
+      <div class="demo-scenarios" role="group" aria-label="Escenarios de asistente">
+        <button type="button" class="demo-scenario-btn" data-scenario="assist">
+          Pensando… + Ejecutar
+          <small>Una sola respuesta, bloque de código y botón Ejecutar</small>
+        </button>
+      </div>
+      <p class="demo-group">Errores</p>
+      <div class="demo-scenarios" role="group" aria-label="Escenarios de error">
+        <button type="button" class="demo-scenario-btn" data-scenario="step-error">
+          Error en un paso
+          <small>run_python falla (columna inexistente)</small>
+        </button>
+        <button type="button" class="demo-scenario-btn" data-scenario="quota">
+          Límite de consultas
+          <small>“Se superó el límite de consultas”</small>
+        </button>
+      </div>
+      <div class="demo-controls">
+        <label>Velocidad
+          <input type="range" id="demo-speed" min="0.4" max="2.2" step="0.1" value="1" />
+        </label>
+        <button type="button" class="ghost" id="demo-replay">Repetir</button>
+        <button type="button" class="ghost" id="demo-clear">Limpiar chat</button>
+      </div>
+    </div>
+
+    <div class="demo-card" style="flex:1; min-height:0; display:flex; flex-direction:column;">
+      <h3 style="margin-bottom:0.45rem;">Eventos NDJSON reproducidos</h3>
+      <div class="demo-log" id="demo-log"></div>
+    </div>
+  </div>
+
+  <div class="demo-chat-shell">
+    <aside class="chat" id="chat-aside" aria-label="Copiloto (demo)">
+      <div class="chat-actions">
+        <button type="button" class="chat-toggle" id="chat-toggle" aria-label="Colapsar chat" aria-expanded="true">⟨</button>
+      </div>
+      <header>
+        <h2>Copiloto</h2>
+        <p id="chat-model" class="muted">gemini-2.5-flash · demo</p>
+        <div class="subtabs chat-mode" id="chat-mode" role="tablist" aria-label="Modo del copiloto">
+          <button type="button" class="subtab" role="tab" data-chat-mode="assist" aria-selected="false">Asistente</button>
+          <button type="button" class="subtab is-active" role="tab" data-chat-mode="agent" aria-selected="true">Agente</button>
+        </div>
+        <p class="hint" id="demo-mode-hint">Modo Agente (simulado): planifica, tools y panel de actividad.</p>
+      </header>
+      <div id="chat-log" class="chat-log"></div>
+      <form id="chat-form" class="composer" onsubmit="return false;">
+        <textarea id="chat-input" rows="2" placeholder="Este campo es decorativo en el sandbox…" autocomplete="off"></textarea>
+        <button type="submit" id="demo-run-current">Repetir</button>
+      </form>
+    </aside>
+  </div>
+
+  <div id="toast" class="toast" hidden role="status"></div>
+  <script src="/static/dev/agent-chat-demo.js"></script>
+</body>
+</html>

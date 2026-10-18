@@ -1,4 +1,21 @@
+# Python
+.venv/
 venv/
-.env
 __pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets
+.env
+analisis_ia/.env
+
+# Local runtime data
+analisis_ia/.sessions/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Cursor: third-party skills (reinstall via agent-skills-cli); keep agents/ and analisis-ia-docs/
+.cursor/skills/*
+!.cursor/skills/analisis-ia-docs/
