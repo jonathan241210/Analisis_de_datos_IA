@@ -8,6 +8,10 @@ Slice 9 complete — Agent chat UX (hybrid `summary` + activity panel) and noteb
 
 ## Completed
 
+### CI pipeline (2026-11-02)
+
+- GitHub Actions `CI Pipeline`: tests + build + `build-python` zip artifact. Pytest: 44 passed.
+
 ### Slice 1
 
 - FastAPI app: ingest, EDA, wrangling, ML, complementary chat, AST sandbox.

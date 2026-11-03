@@ -1,0 +1,44 @@
+name: CI Pipeline
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: analisis_ia
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar pruebas
+        run: |
+          python -m pytest
+
+      - name: Build proyecto
+        run: |
+          mkdir artefactos
+          cp -r app requirements.txt runtime.txt artefactos/
+          cp ../README.md artefactos/
+          find artefactos -name "__pycache__" -type d -prune -exec rm -rf {} +
+
+      - name: Generar ZIP
+        run: |
+          zip -r artefacto.zip artefactos
+
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-python
+          path: analisis_ia/artefacto.zip

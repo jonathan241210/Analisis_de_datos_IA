@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-02 (CI pipeline with build artifact)
+
+### Added
+
+- GitHub Actions workflow `.github/workflows/ci.yml` ("CI Pipeline", on push and pull_request): Python 3.14, install `analisis_ia/requirements.txt`, run pytest, then build steps that copy `app/`, `requirements.txt`, `runtime.txt` and `README.md` into `artefactos/`, zip them to `artefacto.zip` and upload it as the `build-python` artifact.
+- `tests/unit/test_basico.py`: smoke tests for `/health`, code-block extraction, sandbox rejection of `subprocess`, and a simple `dropna` run in the sandbox.
+
+### Tests
+
+- Pytest: 44 passed (`analisis_ia/tests`).
+
 ## 2026-09-19 (Slice 9 — agent chat UX)
 
 ### Added
