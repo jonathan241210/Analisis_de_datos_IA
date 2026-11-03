@@ -1,5 +1,5 @@
 name: CI Pipeline
-
+# archivo yaml para configurar el pipeline de integración continua (CI) en GitHub Actions
 on:
   push:
   pull_request:
