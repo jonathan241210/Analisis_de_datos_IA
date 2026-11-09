@@ -24,7 +24,7 @@ jobs:
 
       - name: Ejecutar pruebas
         run: |
-          python -m pytest
+          python -m pytest --cov=app --cov-report=term
 
       - name: Build proyecto
         run: |
